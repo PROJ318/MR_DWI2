@@ -66,7 +66,7 @@ QWidget* DisplayPort::getWindow(const QString imageLabel)
 	{
 		int row(-1), col(-1);
 		index2Pos(counter, row, col);
-		qDebug() << "[DISPLAYPORT] Retrieving widget " << imageLabel << "from <" << row << "-" << col << ">" << endl;
+		//qDebug() << "[DISPLAYPORT] Retrieving widget " << imageLabel << "from <" << row << "-" << col << ">" << endl;
 		QLayoutItem *Item = this->itemAtPosition(row, col);
 		QWidget * Widget = Item->widget();
 		return Widget;

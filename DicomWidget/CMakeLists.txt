@@ -13,7 +13,6 @@ if(POLICY CMP0053)
   cmake_policy(SET CMP0053 NEW) # CMake 3.1
 endif()
 
-set(CTK_DIR "C:/Tech318/CTK/CTK/CTK-Superbuild")
 find_package(CTK REQUIRED)
 include(${CTK_USE_FILE})
 

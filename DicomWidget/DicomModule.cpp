@@ -29,29 +29,21 @@ void DicomModule::CreateQtPartControl(QWidget *parent)
 		m_Controls->setupUi(parent);
 		//m_Controls.StoreSCPStatusLabel->setTextFormat(Qt::RichText);
 		//m_Controls.StoreSCPStatusLabel->setText("<img src=':/org.mitk.gui.qt.dicom/network-offline_16.png'>");
-
-
 		//TestHandler();
-
 		//OnPreferencesChanged(nullptr);
 		//CreateTemporaryDirectory();
 		//StartDicomDirectoryListener();
 
 		m_Controls->m_ctkDICOMQueryRetrieveWidget->useProgressDialog(true);
 
-		//connect(m_Controls.tabWidget, SIGNAL(currentChanged(int)), this, SLOT(OnTabChanged(int)));
-
 		connect(m_Controls->externalDataWidget, SIGNAL(SignalStartDicomImport(const QStringList&)),
 			m_Controls->internalDataWidget, SLOT(OnStartDicomImport(const QStringList&)));
 
-		//connect(m_Controls.externalDataWidget, SIGNAL(SignalDicomToDataManager(const QHash<QString, QVariant>&)),
-		//	this, SLOT(OnViewButtonAddToDataManager(const QHash<QString, QVariant>&)));
-
 		connect(m_Controls->internalDataWidget, SIGNAL(SignalFinishedImport()), this, SLOT(OnDicomImportFinished()));
-		//connect(m_Controls.internalDataWidget, SIGNAL(SignalDicomToDataManager(const QHash<QString, QVariant>&)),
-		//	this, SLOT(OnViewButtonAddToDataManager(const QHash<QString, QVariant>&)));
+
 		connect(m_Controls->internalDataWidget, SIGNAL(SignalDicomToDataManager(QStringList)),
 			this, SLOT(onSignalDicomToDataManager(QStringList)));
+
 		connect(m_Controls->externalDataWidget, SIGNAL(SignalDicomToDataManager(QStringList)),
 			this, SLOT(onSignalDicomToDataManager(QStringList)));
 	}

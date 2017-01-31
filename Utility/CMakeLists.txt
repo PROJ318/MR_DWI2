@@ -19,7 +19,7 @@ find_package(ITK REQUIRED)
 include(${ITK_USE_FILE})
 # (CTK REQUIRED)
 # include(${CTK_USE_FILE})
-find_package(Qt5 COMPONENTS Widgets REQUIRED QUIET)
+# find_package(Qt5 COMPONENTS Widgets REQUIRED QUIET)
 
 include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}
@@ -39,5 +39,4 @@ include_directories(
 
 # CMAKE_AUTOMOC in ON so the MocHdrs will be automatically wrapped.
 add_library(Utility STATIC ${Srcs} ${Hdrs} )
-qt5_use_modules(Utility Core Gui Widgets Sql opengl Xml UiTools XmlPatterns Concurrent)
-target_link_libraries(Utility ${QT_LIBRARIES} ${ITK_LIBRARIES} ${VTK_LIBRARIES} ${Glue})
+target_link_libraries(Utility ${ITK_LIBRARIES} ${VTK_LIBRARIES} ${Glue})

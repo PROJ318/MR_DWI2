@@ -20,9 +20,6 @@ find_package(CTK REQUIRED)
 include(${CTK_USE_FILE})
 
 set( Srcs 
-    DicomHelper.cpp
-    DiffusionCore.cpp
-    displayport.cpp
     itkAdcMapFilter.hxx 
     itkComputedDwiFilter.hxx 
     itkDwiIVIMFilter.hxx
@@ -32,14 +29,10 @@ set( Srcs
     itkMaskVectorImageFilter.hxx
     itkGetDiffusionImageFilter.hxx
     itkTensor.hxx
-    vtkRoiInteractor.cxx
-    vtkUDInteractorStyleImage.cxx
+	DiffusionCore.cpp
     )
 
 set( Hdrs 
-     DicomHelper.h
-     DiffusionCore.h
-     displayport.h
      itkAdcMapFilter.h 
      itkComputedDwiFilter.h     
      itkDwiIVIMCostFunction.h
@@ -51,9 +44,6 @@ set( Hdrs
      itkMaskVectorImageFilter.h
      itkTensor.h
      itkGetDiffusionImageFilter.h
-     #itkVtkAllHeaders.h
-     vtkRoiInteractor.h
-     vtkUDInteractorStyleImage.h
    )
 
 set( MOC_Hdrs DiffusionCore.h)
@@ -62,6 +52,7 @@ set( UIs DiffusionCore.ui)
 include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}
+  "../Utility"
 )
 
 # Instruct CMake to run moc automatically when needed.
@@ -72,7 +63,7 @@ find_package(Qt5 COMPONENTS Widgets REQUIRED QUIET)
 qt5_wrap_ui(UI_Srcs ${UIs})
 add_library(DiffusionCore STATIC ${Srcs} ${Hdrs} ${UI_Srcs} ${MOC_Hdrs} )
 qt5_use_modules(DiffusionCore Core Gui Widgets Sql Xml UiTools XmlPatterns Concurrent)
-target_link_libraries(DiffusionCore ${ITK_LIBRARIES} ${VTK_LIBRARIES} ${Glue} CTKWidgets)
+target_link_libraries(DiffusionCore ${ITK_LIBRARIES} ${VTK_LIBRARIES} ${Glue} Utility CTKWidgets)
 # if(VTK_LIBRARIES)
   # target_link_libraries(DiffusionCore ${VTK_LIBRARIES})
 # else()

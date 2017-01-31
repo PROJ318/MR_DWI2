@@ -41,7 +41,7 @@ DWI Core UI
 //#include <itkCastImageFilter.h>
 
 typedef unsigned short SourceImagePixelType;
-typedef float DiffusionCalculatorPixelType;
+typedef float DiffusionCalculatorPixelType; 
 typedef itk::Image < SourceImagePixelType, 3> SourceImageType;
 typedef itk::Image <DiffusionCalculatorPixelType, 3> DiffusionCalculatorImageType;
 typedef itk::VectorImage <DiffusionCalculatorPixelType, 3> DiffusionCalculatorVectorImageType;
@@ -74,20 +74,6 @@ class DiffusionCore : public QWidget
 	// this is needed for all Qt objects that should have a Qt meta-object
 	// (everything that derives from QObject and wants to have signal/slots)
 	Q_OBJECT
-protected:
-	enum imageType
-	{
-		ORIGINAL = 0,
-		ADC = 1,
-		CDWI = 2,
-		EADC = 3,
-		FA = 4,
-		CFA = 5,
-		IVIM_F = 6,
-		IVIM_D = 7,
-		IVIM_Dstar = 8,
-		NOIMAGE = 100
-	};
 
 public:
 
@@ -117,24 +103,32 @@ public:
 	*/
 	void Initialize();
 
-	DisplayPort* displayLayout;
-
 signals:
 
 	///// @brief emitted when dicomdata is imported.
-	void SignalDicomLoaded(bool);
+	void SignalImageLoaded(bool);
 
 	void SignalTestButtonFired(bool _istoggled, vtkSmartPointer <vtkImageData>, QString, float , float );
 
 	public slots:
 
+	/////// @brief 
+	/////// This slot retrieve source image.
+	/////// 
+	//void OnImageFilesLoaded(const QStringList&);
+
 	///// @brief 
-	///// In this slot,  render input dicom files.
+	///// This slot recalculate all displaying image.
 	///// 
-	void OnImageFilesLoaded(const QStringList&);
+	void onRecalcAll(int);
 
 	protected slots:
 
+	///// @brief
+	///// In this slot, create/update SourceImage
+	///// 
+	void onSetSourceImage(DicomHelper*, int );
+	
 	///// @brief
 	///// In this slot, call adc calculation and render the image
 	///// 
@@ -178,39 +172,13 @@ signals:
 	///// @brief
 	///// In this slot, change the interactor of qvtkwindows to ROI drawing.
 	///// 
-	void addROI();//bool toggle
-
-
-	///// @brief
-	///// In this slot, change the interactor of qvtkwindows to ROI drawing.
-	///// 
 	void onTestButton(bool _istoggled);
 
-	///// @brief
-	///// In this slot, change the interactor of qvtkwindows to pixel picker.
-	///// 
-	void onCursorPickValue(bool _istoggled);
 
-	///// @brief
-	///// In this slot, change the interactor of qvtkwindows to pixel picker.
-	///// 
-	void onDisplayPickValue(vtkObject* obj, unsigned long,
-		void* client_data, void*, 
-		vtkCommand * command);
 
 protected:
 
-
-
-	void DisplayDicomInfo(vtkSmartPointer <vtkImageData> imageData);
-	void SourceImageViewer2D(vtkSmartPointer <vtkImageData>, QVTKWidget *qvtkWidget);
-	void QuantitativeImageViewer2D(vtkSmartPointer <vtkImageData>, QVTKWidget *qvtkWidget, std::string imageLabel);
-	void SetImageFillWindow(vtkSmartPointer <vtkCamera> &camera, vtkSmartPointer <vtkImageData> imageData, double width, double height);
-	void TestCallbackFunc(vtkObject *caller, long unsigned int eventId, void *clientData, void* callData);
-	void ShareWindowEvent();
-
-	void SortingSourceImage();
-	void UpdateMaskVectorImage();
+	void UpdateMaskVectorImage(DicomHelper* inputDcmData, DiffusionCalculatorVectorImageType::Pointer outputImage);//This should be moved to DicomHelper class.
 	void AdcCalculator(vtkSmartPointer <vtkImageData> imageData, float& scale, float& slope);
 	void FaCalculator(vtkSmartPointer <vtkImageData> imageData, float& scale, float& slope);
 	void ColorFACalculator(vtkSmartPointer <vtkImageData> imageData);
@@ -224,25 +192,21 @@ protected:
 protected:
 	
 	Ui::DiffusionModule* m_Controls;
-	DicomHelper *m_DicomHelper;//initialization? 
 
-	vtkSmartPointer < vtkImageData > sourceImage;
+	DicomHelper* m_DicomHelper;	
+
 	DiffusionCalculatorVectorImageType::Pointer m_MaskVectorImage;//USE VectorImageType::Pointer
+	int m_CurrentSlice;
+
+	QHash<int, DiffusionCalculatorVectorImageType::Pointer> m_vectorImage;
 
 	vtkEventQtSlotConnect* Connections;
 
 	int sourceScalarType = 0;
-	int m_SourceImageCurrentSlice;
-	int m_QuantitativeImageCurrentSlice;
-	QHash < const QString, float >  m_ScalingParameter;
 
 	double m_MaskThreshold;
 	double m_ComputedBValue;
 
-	QGroupBox* viewFrame;
-
-
-	//std::vector< std::vector<int> > layoutTable; // Table used for tracing window content
 	QButtonGroup* ButtonTable; // A QButtonGroup to store all algorithm Buttons. 
 
 };

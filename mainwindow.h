@@ -26,6 +26,8 @@ class DicomModule;
 class vtkImageData;
 class QVTKWidget;
 class DisplayPort;
+class vtkCamera;
+class DicomHelper;
 
 class MainWindow : public QMainWindow
 {
@@ -49,24 +51,61 @@ public:
 
 signals:
 
+	void SignalSetSourceImage(DicomHelper*, int);
+	void SignalRecalcAll(int);
 
 	public slots :
 
 
 	protected slots :
 	void onStartdicom();
-	void onDicomLoaded(bool);
+	//void onDicomLoaded(bool);
 	void onProcButtonClicked(bool, vtkSmartPointer <vtkImageData>, const QString, const float, const float);
+	void OnImageFilesLoaded(const QStringList& fileLists);
+
+	/////// @brief
+	/////// In this slot, change the interactor of qvtkwindows to ROI drawing.
+	/////// 
+	//void addROI();//bool toggle
+
+	/////// @brief
+	/////// In this slot, change the interactor of qvtkwindows to pixel picker.
+	/////// 
+	//void onCursorPickValue(bool _istoggled);
+
+	/////// @brief
+	/////// In this slot, change the interactor of qvtkwindows to pixel picker.
+	/////// 
+	//void onDisplayPickValue(vtkObject* obj, unsigned long,
+	//	void* client_data, void*,
+	//	vtkCommand * command);
 
 protected:
-	void ExtenImageViewer2D(vtkSmartPointer <vtkImageData> imagedata, QVTKWidget *qvtkWidget, std::string imageLabel);
+
+	void DisplayDicomInfo(vtkSmartPointer <vtkImageData> imageData);
+	void SortingSourceImage(); //This should be moved to DicomHelper class
+	void ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, std::string imageLabel);
+
+	void IVIMImageViewer(vtkSmartPointer <vtkImageData>, QVTKWidget *qvtkWidget, int imageIdx);
+	void SetImageFillWindow(vtkSmartPointer <vtkCamera> &camera, vtkSmartPointer <vtkImageData> imageData, double width, double height);
+	
+	void ShareWindowEvent();	
 
 private:
-
 	QHash < const QString, float >  ScalingParameters;
 	Ui::MainWindow *ui;
-	DicomModule * DicomUI;
+	DicomModule* DicomUI;
+	DicomHelper* m_DicomHelper;//initialization? 
 	DisplayPort* displayLayout;
+
+	vtkSmartPointer < vtkImageData > sourceImage;
+
+	int sourceScalarType = 0;
+	int m_SourceImageCurrentSlice;
+	//int m_QuantitativeImageCurrentSlice;
+
+	double m_MaskThreshold;
+	double m_ComputedBValue;
 };
 
 #endif // MAINWINDOW_H

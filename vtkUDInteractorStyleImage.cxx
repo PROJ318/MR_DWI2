@@ -5,7 +5,7 @@
 #include <vtkUDInteractorStyleImage.h>
 
 #include <vtkImageViewer2.h>
-#include <vtkTextMapper.h>
+
 #include <vtkInteractorStyleImage.h>
 #include <vtkCollection.h>
 #include <vtkImageData.h>
@@ -27,6 +27,9 @@
 myVtkInteractorStyleImage::myVtkInteractorStyleImage()
 {
 	roiInteraction = vtkRoiInteractor::New();
+	_ImageViewer = vtkSmartPointer<vtkImageViewer2>::New();
+	_StatusMapper = vtkSmartPointer<vtkTextMapper>::New();
+	_Component = 0;
 }
 void myVtkInteractorStyleImage::SetImageViewer(vtkImageViewer2* imageViewer) {
 	_ImageViewer = imageViewer;
@@ -38,7 +41,7 @@ void myVtkInteractorStyleImage::SetImageViewer(vtkImageViewer2* imageViewer) {
 	_imageActor = imageViewer->GetImageActor();
 	_currentRender = imageViewer->GetRenderer();
 	_MaxComponent = imageViewer->GetInput()->GetNumberOfScalarComponents() - 1;
-	_Component = 0;
+
 
 	SetDefaultWindowLevel(_Slice, _Component);
 	//cout << "Slicer: Min = " << _MinSlice << ", Max = " << _MaxSlice << std::endl;
@@ -47,7 +50,9 @@ void myVtkInteractorStyleImage::SetImageViewer(vtkImageViewer2* imageViewer) {
 void myVtkInteractorStyleImage::SetDefaultWindowLevel(int currentSlice, int currentComponent)
 {
 	int dims[3];
-	_OriginalInputImageData->GetDimensions(dims);
+	_ImageViewer->GetInput()->GetDimensions(dims);
+	double colorWindow, colorLevel;
+	//3D data set in Source image window
 	if (dims[2] > 1)
 	{
 		//Extract slice
@@ -70,13 +75,34 @@ void myVtkInteractorStyleImage::SetDefaultWindowLevel(int currentSlice, int curr
 		//std::cout << "before window leve range = " << std::endl;
 		double *range = static_cast<double *>(changeInfo->GetOutput()->GetScalarRange());
 		//std::cout << "window leve range = " << range[0] << " " << range[1] << std::endl;
-		_ImageViewer->SetColorWindow(range[1] - range[0]);
-		_ImageViewer->SetColorLevel(0.5* (range[1] + range[0]));
+		colorWindow = range[1] - range[0];
+		colorLevel = 0.5* (range[1] + range[0]);
 	}
+	//2D dataset in quantitative image window
 	else if (dims[2] == 1)
 	{
-		// move quantitative image viewer window level to here later
+		double *imageDataRange = new double[2];
+		imageDataRange = _ImageViewer->GetInput()->GetScalarRange();//Replace with to be displayed
+
+		if (_MaxComponent == 2)
+		{
+			//color map 
+			colorWindow = 255.0;
+			colorLevel = 127.5;
+
+		}
+		else
+		{
+			double *imageDataRange = new double[2];
+			imageDataRange = _ImageViewer->GetInput()->GetScalarRange();
+			colorWindow = imageDataRange[1] - imageDataRange[0];
+			colorLevel = 0.5* (imageDataRange[1] + imageDataRange[0]);
+		}
+
 	}
+
+	_ImageViewer->SetColorWindow(colorWindow);
+	_ImageViewer->SetColorLevel(colorLevel);
 }
 
 void myVtkInteractorStyleImage::MoveSliceForward()

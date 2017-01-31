@@ -5,6 +5,8 @@
 
 #include <vtkInteractorStyleImage.h>
 #include <vtkRoiInteractor.h>
+#include <vtkSmartPointer.h>
+#include <vtkTextMapper.h>
 
 class vtkImageData;
 class vtkImageProperty;
@@ -13,7 +15,6 @@ class vtkRenderWindow;
 class vtkRenderWindowInteractor;
 class vtkRenderer;
 class vtkImageViewer2;
-class vtkTextMapper;
 class vtkContourWidget;
 
 #include <sstream>
@@ -36,8 +37,8 @@ public:
 protected:
 	myVtkInteractorStyleImage();
 	~myVtkInteractorStyleImage() {}
-	vtkImageViewer2* _ImageViewer;
-	vtkTextMapper* _StatusMapper = NULL;
+	vtkSmartPointer<vtkImageViewer2> _ImageViewer;
+	vtkSmartPointer<vtkTextMapper> _StatusMapper;
 	int _Slice;
 	int _MinSlice;
 	int _MaxSlice;

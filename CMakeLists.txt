@@ -15,6 +15,7 @@ project(MR_Diffusion)
 
 add_subdirectory(DicomWidget)
 add_subdirectory(DiffusionCore)
+add_subdirectory(Utility)
 
 find_package(VTK REQUIRED)
 find_package(CTK REQUIRED)
@@ -29,9 +30,18 @@ if("${VTK_QT_VERSION}" STREQUAL "")
 endif()
 
 # Set your files and resources here
-set( Srcs main.cpp mainwindow.cpp)
+set( Srcs main.cpp 
+     mainwindow.cpp
+	 vtkRoiInteractor.cxx
+     vtkUDInteractorStyleImage.cxx
+	 displayport.cpp
+    )
 
-set( Hdrs mainwindow.h )
+set( Hdrs mainwindow.h 
+	 vtkRoiInteractor.h
+     vtkUDInteractorStyleImage.h
+	 displayport.h
+	 )
 
 set( MOC_Hdrs mainwindow.h )
 
@@ -44,6 +54,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   "DicomWidget"
   "DiffusionCore"
+  "Utility"
 )
 
 # Instruct CMake to run moc automatically when needed.
@@ -57,5 +68,5 @@ qt5_add_resources(QRC_Srcs ${QRCs} )
 # CMAKE_AUTOMOC in ON so the MocHdrs will be automatically wrapped.
 add_executable(MR_Diffusion ${Srcs} ${Hdrs} ${UI_Srcs} ${MOC_Hdrs})
 qt5_use_modules(MR_Diffusion Core Gui Widgets Sql Xml UiTools XmlPatterns Concurrent)
-target_link_libraries(MR_Diffusion ${VTK_LIBRARIES} ${QT_LIBRARIES}  DicomWidget DiffusionCore  CTKWidgets CTKDICOMWidgets)
+target_link_libraries(MR_Diffusion ${VTK_LIBRARIES} ${QT_LIBRARIES}  DicomWidget DiffusionCore Utility CTKWidgets CTKDICOMWidgets)
 
