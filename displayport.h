@@ -57,11 +57,14 @@ public:
 	//* \brief std::vector<QWidget* > getAllWindowNames() get all widgets' name currently exist in display port
 	//*/
 	//std::vector< const QString > getAllWindowNames();
+signals:
+	void signalMouseAt(const QString);
 
 protected:
 
 	void index2Pos(int index, int& row, int& col);
 	void pos2Index(int& index, int row, int col);
+	bool eventFilter(QObject *, QEvent *);    //◊¢“‚’‚¿Ô
 
 private:
 	//QGridLayout* DC_gridlayout;

@@ -28,6 +28,7 @@ class QVTKWidget;
 class DisplayPort;
 class vtkCamera;
 class DicomHelper;
+class QStandardItemModel;
 
 class MainWindow : public QMainWindow
 {
@@ -63,23 +64,32 @@ signals:
 	void onProcButtonClicked(bool, vtkSmartPointer <vtkImageData>, const QString, const float, const float);
 	void OnImageFilesLoaded(const QStringList& fileLists);
 
-	/////// @brief
-	/////// In this slot, change the interactor of qvtkwindows to ROI drawing.
-	/////// 
-	//void addROI();//bool toggle
+	///// @brief
+	///// In this slot, change the interactor of qvtkwindows to ROI drawing.
+	///// 
+	void addROI();//bool toggle
 
-	/////// @brief
-	/////// In this slot, change the interactor of qvtkwindows to pixel picker.
-	/////// 
-	//void onCursorPickValue(bool _istoggled);
+	///// @brief
+	///// In this slot, change the interactor of qvtkwindows to pixel picker.
+	///// 
+	void onCursorPickValue(bool _istoggled);
 
-	/////// @brief
-	/////// In this slot, change the interactor of qvtkwindows to pixel picker.
-	/////// 
-	//void onDisplayPickValue(vtkObject* obj, unsigned long,
-	//	void* client_data, void*,
-	//	vtkCommand * command);
+	///// @brief
+	///// In this slot, change the interactor of qvtkwindows to pixel picker.
+	///// 
+	void onDisplayPickValue(vtkObject* obj, unsigned long,
+		void* client_data, void*,
+		vtkCommand * command);
 
+	///// @brief
+	///// In this slot, react to clicking a item in the treeview.
+	///// 
+	void onClickTreeView(const QModelIndex &index);
+
+	///// @brief
+	///// In this slot, react to grabFocus on a centain widget.
+	///// 
+	void onFocusWdw(const QString);
 protected:
 
 	void DisplayDicomInfo(vtkSmartPointer <vtkImageData> imageData);
@@ -87,7 +97,7 @@ protected:
 	void ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, std::string imageLabel);
 
 	void IVIMImageViewer(vtkSmartPointer <vtkImageData>, QVTKWidget *qvtkWidget, int imageIdx);
-	void SetImageFillWindow(vtkSmartPointer <vtkCamera> &camera, vtkSmartPointer <vtkImageData> imageData, double width, double height);
+	void SetImageFillWindow(vtkSmartPointer <vtkCamera> camera, vtkSmartPointer <vtkImageData> imageData, double width, double height);
 	
 	void ShareWindowEvent();	
 
@@ -98,14 +108,18 @@ private:
 	DicomHelper* m_DicomHelper;//initialization? 
 	DisplayPort* displayLayout;
 
+	QStandardItemModel *roiInfoModel;
 	vtkSmartPointer < vtkImageData > sourceImage;
 
+	QString focusedWdwName;
 	int sourceScalarType = 0;
 	int m_SourceImageCurrentSlice;
 	//int m_QuantitativeImageCurrentSlice;
 
 	double m_MaskThreshold;
 	double m_ComputedBValue;
+
+	int testvalue;
 };
 
 #endif // MAINWINDOW_H

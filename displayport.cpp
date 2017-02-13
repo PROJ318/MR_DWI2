@@ -1,5 +1,6 @@
 #include "displayport.h"
 #include "qdebug.h"
+#include "qevent.h"
 
 DisplayPort::DisplayPort(QWidget *grid)
 {
@@ -56,8 +57,40 @@ void DisplayPort::insertWindow(QWidget* wdw, const QString imageLabel)
 	index2Pos(index, row, col);
 	//qDebug()<<"row = "<<row<<" col ="<<col<<endl;
 	this->addWidget(wdw, row, col);
+	wdw->installEventFilter(this);
 	this->update();
 }
+
+bool DisplayPort::eventFilter(QObject *watched, QEvent *event)
+{
+
+	int flag(-1), counter(-1); //the first one cannot be removed
+	int row(-1), col(-1);
+	for (counter = 1; (counter < DC_LayoutMap.size() + 1) && flag < 0;)
+	{
+		index2Pos(counter, row, col);
+		//qDebug() << "[DISPLAYPORT]" << DC_LayoutMap[counter - 1].c_str() << "_" << imageLabel.c_str() << "_" << endl;
+		if (watched == this->itemAtPosition(row, col)->widget())//if equal
+		{
+			flag = 1;
+			//qDebug() << "Found widget at counter = " << counter << endl;
+		}
+		else{
+			counter++;
+		}
+	}
+	if (flag>0){
+		if (event->type() == QEvent::Enter)
+		{
+			// qDebug()<<"mouse is in widget ["<<row<<"-"<<col<<"] "<<DC_LayoutMap[counter-1]<<endl;
+			emit signalMouseAt(DC_LayoutMap[counter - 1]);
+			return true;
+		}
+	}
+	return QObject::eventFilter(watched, event);
+}
+
+
 
 QWidget* DisplayPort::getWindow(const QString imageLabel)
 {
@@ -101,13 +134,13 @@ int DisplayPort::getWidgetInd(const QString imageLabel)
 	for (counter = 1; (counter < DC_LayoutMap.size() + 1) && flag < 0;)
 	{
 		//qDebug() << "[DISPLAYPORT]" << DC_LayoutMap[counter - 1].c_str() << "_" << imageLabel.c_str() << "_" << endl;
-		if (DC_LayoutMap[counter-1] == imageLabel)//if equal
+		if (DC_LayoutMap[counter - 1] == imageLabel)//if equal
 		{
 			flag = 1;
 			//qDebug() << "Found widget at counter = " << counter << endl;
 		}
 		else{
-			counter++;			
+			counter++;
 		}
 	}
 
@@ -124,7 +157,7 @@ int DisplayPort::getWidgetInd(const QString imageLabel)
 
 void DisplayPort::removeWindow(const QString imageLabel)
 {
-	
+
 	int counter = getWidgetInd(imageLabel);
 
 	//2. If found.
@@ -134,14 +167,8 @@ void DisplayPort::removeWindow(const QString imageLabel)
 		//2.1, Adjust the LayoutMap.
 		int rowF(-1), colF(-1), rowT(-1), colT(-1);
 		//qDebug() << "[DISPLAYPORT] counter = " << counter << endl;
-
 		index2Pos(counter, rowT, colT); //deleting pos
-
 		index2Pos(DC_LayoutMap.size(), rowF, colF); //last pos
-
-
-
-
 		//qDebug() << "[DISPLAYPORT]moving window from " << rowF << ":" << colF << " to " << rowT << ":" << colT << endl;
 		QLayoutItem *ItemF = this->itemAtPosition(rowF, colF);
 		QWidget * WidgetF = ItemF->widget();
@@ -151,15 +178,15 @@ void DisplayPort::removeWindow(const QString imageLabel)
 		if (WidgetF != NULL) {
 			this->addWidget(WidgetF, rowT, colT); //move F to T pos.
 		}
-		//qDebug << "There is a widget ? " << (existWidget != NULL) << std::endl;
 		if (WidgetT != NULL) {
 			//this->removeWidget(WidgetT);
+			WidgetT->removeEventFilter(this);
 			WidgetT->setParent(NULL);
 			delete WidgetT;
 		}
 
 		//STEP2, modify the DC_Windoes accordingly
-		std::iter_swap(DC_LayoutMap.begin()+counter-1, DC_LayoutMap.end() - 1);
+		std::iter_swap(DC_LayoutMap.begin() + counter - 1, DC_LayoutMap.end() - 1);
 		DC_LayoutMap.pop_back();
 		//this->PrintWdwLayout();
 	}

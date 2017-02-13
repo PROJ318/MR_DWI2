@@ -72,9 +72,11 @@
 
 #include <vtkOrientedGlyphContourRepresentation.h>
 #include <vtkImageActorPointPlacer.h>
+
 //TRY SetNumberOfThreads(1) to solve the multi-thread ranmdom results
 //Notify Wenxing
-
+#define DEFAULTTHRESH 10
+#define DEFAULTB 2000
 
 DiffusionCore::DiffusionCore(QWidget *parent)
 	:QWidget(parent)
@@ -83,6 +85,7 @@ DiffusionCore::DiffusionCore(QWidget *parent)
 	this->m_Controls = nullptr;	
 	this->ButtonTable = new QButtonGroup;
 	this->m_MaskVectorImage = DiffusionCalculatorVectorImageType::New();
+	m_MaskThreshold = DEFAULTTHRESH/5;
 
 	CreateQtPartControl(this);
 }
@@ -107,17 +110,17 @@ void DiffusionCore::CreateQtPartControl(QWidget *parent)
 		m_Controls->bSlider->setDecimals(0);
 		m_Controls->bSlider->setSingleStep(100);
 		m_Controls->bSlider->setTickInterval(100);
-		m_Controls->bSlider->setValue(2000);
+		m_Controls->bSlider->setValue(DEFAULTB);
 		m_Controls->bSlider->setTracking(false);
 		m_Controls->ThreshSlider->setMaximum(100); //maximum threshhold value;
 		m_Controls->ThreshSlider->setDecimals(0);
 		m_Controls->ThreshSlider->setSingleStep(1);
 		m_Controls->ThreshSlider->setTickInterval(1);
-		m_Controls->ThreshSlider->setValue(10);
+		m_Controls->ThreshSlider->setValue(DEFAULTTHRESH);
 		m_Controls->ThreshSlider->setTracking(false);
 		//connect Buttons and handle visibility
 
-		//this->m_Controls->ADCTool->setDisabled(true);
+		this->m_Controls->ADCTool->setDisabled(true);
 		this->m_Controls->DTITool->setDisabled(true);
 		this->m_Controls->ivimToggle->setDisabled(true);
 		
@@ -138,8 +141,6 @@ void DiffusionCore::CreateQtPartControl(QWidget *parent)
 		connect(m_Controls->colorFAToggle, SIGNAL(toggled(bool)), this, SLOT(onCalcColorFA(bool)));
 		connect(m_Controls->ivimToggle, SIGNAL(toggled(bool)), this, SLOT(onCalcIVIM(bool)));
 
-		m_Controls->pushButton->setCheckable(true);
-		connect(m_Controls->pushButton, SIGNAL(toggled(bool)), this, SLOT(onTestButton(bool)));
 
 		//Connect Sliders
 		connect(m_Controls->ThreshSlider, SIGNAL(valueChanged(double)), this, SLOT(onThreshSlide(double)));
@@ -161,62 +162,51 @@ void DiffusionCore::onSetSourceImage(DicomHelper* dicomData, int inputSlice)
 	//Enable/Disable Buttons.
 	//
 
-	this->m_Controls->Thresh->setVisible(false);
+	//this->m_Controls->Thresh->setVisible(false);
 
 	if (m_DicomHelper->tensorComputationPossible)
 	{
-		std::cout << "DTI OK ";
+		std::cout << "[SetSourceImage] DTI OK ";
 		this->m_Controls->DTITool->setEnabled(true);
-	}
-	else{
+	}else{
 		//this->ui->dtiNameTag->setText("Data does not contain multiple direction, view Only");
-		std::cout << "DTI NOT OK, DWI OK"<<std::endl;
-		if (m_DicomHelper->numberOfBValue > 2)
+		if (m_DicomHelper->numberOfBValue >= 2)
 		{
+			std::cout << "[SetSourceImage] DTI NOT OK, DWI OK" << std::endl;
 			this->m_Controls->ADCTool->setEnabled(true);
-			if (m_DicomHelper->numberOfBValue > 4)
+			if (m_DicomHelper->numberOfBValue >= 4)
 			{
 				this->m_Controls->ivimToggle->setEnabled(true);
 			}
 		}
 	}
 
-	//UpdateMaskVectorImage(m_DicomHelper, m_MaskVectorImage);
-	onRecalcAll(inputSlice);
-	//Reset all Buttons. 
-	//for (int i = 301; i < 307; i++)
-	//{
-	//	ButtonTable->button(i)->blockSignals(true);
-	//	ButtonTable->button(i)->setChecked(false);
-	//	ButtonTable->button(i)->blockSignals(false);
-	//	ButtonTable->button(i)->setEnabled(true);
-	//}
-
+	onRecalcAll(inputSlice); //recalculated all calculated images 
 }
 
-void DiffusionCore::onTestButton(bool _istoggled)
-{
-	std::cout << "test button is clicked" << std::endl;
-
-	vtkSmartPointer <vtkImageData> calculatedAdc;
-	const QString imageName(m_Controls->pushButton->text());
-
-	float scale(0.0), slope(0.0);
-	if (_istoggled)
-	{
-		calculatedAdc = vtkSmartPointer <vtkImageData>::New();
-		
-		this->AdcCalculator(calculatedAdc, scale, slope);
-	}
-	else
-	{
-		calculatedAdc = NULL;		
-	}
-
-	std::cout << "test button fired" << std::endl;
-
-	emit SignalTestButtonFired(_istoggled, calculatedAdc, imageName, scale, slope);
-}
+//void DiffusionCore::onTestButton(bool _istoggled)
+//{
+//	std::cout << "test button is clicked" << std::endl;
+//
+//	vtkSmartPointer <vtkImageData> calculatedAdc;
+//	const QString imageName(m_Controls->pushButton->text());
+//
+//	float scale(0.0), slope(0.0);
+//	if (_istoggled)
+//	{
+//		calculatedAdc = vtkSmartPointer <vtkImageData>::New();
+//		
+//		this->AdcCalculator(calculatedAdc, scale, slope);
+//	}
+//	else
+//	{
+//		calculatedAdc = NULL;		
+//	}
+//
+//	std::cout << "test button fired" << std::endl;
+//
+//	emit SignalTestButtonFired(_istoggled, calculatedAdc, imageName, scale, slope);
+//}
 
 void DiffusionCore::onCalcADC(bool _istoggled) //SLOT of adcToggle
 {
@@ -510,7 +500,7 @@ void DiffusionCore::CDWICalculator(vtkSmartPointer <vtkImageData> imageData, flo
 
 void DiffusionCore::onThreshSlide(double maskThreshold) //SLOT of cdwiToggle
 {
-	m_MaskThreshold = maskThreshold/5;
+	m_MaskThreshold = maskThreshold/5; //slider value is 5 fold of real value. 
 	DiffusionCore::onRecalcAll(m_CurrentSlice);
 }
 
@@ -844,7 +834,7 @@ void DiffusionCore::onRecalcAll(int inputSlice)
 {		
 	if (inputSlice >= 0)
 	{
-		std::cout << "[onRecalcAll] updating slice" << endl;
+		//std::cout << "[onRecalcAll] updating slice" << endl;
 		m_CurrentSlice = inputSlice;
 		UpdateMaskVectorImage(m_DicomHelper, this->m_MaskVectorImage);
 		//m_vectorImage.insert(inputSlice, m_MaskVectorImage);
@@ -874,7 +864,7 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalcu
 	// currently implementation, for GE data; need a decent way!!!
 	//typedef T SourceImagePixelType;
 	//typedef itk::Image < SourceImagePixelType, 3> SourceImageType;
-	cout << "[UpdateMaskVectorImage] Slicing Source Image" << endl;
+	cout << "[UpdateMaskVectorImage] Slicing Source Image at " <<m_CurrentSlice<< endl;
 
 	typedef itk::VectorContainer< SourceImagePixelType, DiffusionCalculatorImageType::Pointer > ImageContainerType;
 	typedef itk::VTKImageToImageFilter <SourceImageType>	VtkToItkConverterType;
@@ -891,16 +881,16 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalcu
 	//{
 	imageContainer->Reserve(this->m_DicomHelper->numberOfComponents);
 	//}
-	std::cout << "m_DicomHelper numof components" << this->m_DicomHelper->numberOfComponents << std::endl;
+	//std::cout << "m_DicomHelper numof components" << this->m_DicomHelper->numberOfComponents << std::endl;
 
 	vtkSmartPointer <vtkExtractVOI> ExtractVOI = vtkSmartPointer <vtkExtractVOI>::New();
 	ExtractVOI->SetInputData(dicomData->DicomReader->GetOutput());
 	ExtractVOI->SetVOI(0, this->m_DicomHelper->imageDimensions[0] - 1, 0, this->m_DicomHelper->imageDimensions[1] - 1, m_CurrentSlice, m_CurrentSlice);
 	ExtractVOI->Update();
-	std::cout << "---------------------------- VOI is correct ? ---------------------" << std::endl;
-	std::cout << "Current Slice is " << m_CurrentSlice << std::endl;
+	//std::cout << "---------------------------- VOI is correct ? ---------------------" << std::endl;
+	//std::cout << "Current Slice is " << m_CurrentSlice << std::endl;
 	//this->DisplayDicomInfo(ExtractVOI->GetOutput());
-	std::cout << "---------------------------- End of VOI ---------------------" << std::endl;
+	//std::cout << "---------------------------- End of VOI ---------------------" << std::endl;
 
 	//PR: mask image doesn't change for slices other than the first one whlie sliding the maskthreshold slider
 	//fix extent range here, default z extent is inputSlice to inputSlice;
@@ -912,10 +902,10 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalcu
 	changeInfo->SetExtentTranslation(0, 0, -m_CurrentSlice);
 	changeInfo->Update();
 
-	std::cout << "---------------------------- translateExtent is correct ? ---------------------" << std::endl;
+	//std::cout << "---------------------------- translateExtent is correct ? ---------------------" << std::endl;
 	//this->DisplayDicomInfo(changeInfo->GetOutput());
-	std::cout << "---------------------------- End of translateExtent ---------------------" << std::endl;
-	std::cout << " update vector image DTI numberOfComponents " << m_DicomHelper->numberOfComponents << std::endl;
+	//std::cout << "---------------------------- End of translateExtent ---------------------" << std::endl;
+	//std::cout << " update vector image DTI numberOfComponents " << m_DicomHelper->numberOfComponents << std::endl;
 
 	int DTIindex = 0;
 	for (int i = 0; i < this->m_DicomHelper->numberOfComponents; i++)
@@ -945,7 +935,7 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalcu
 		shiftScale->Update();
 
 		//removing the isotropic direction for DTI has been implemented in the sorting source image.
-		std::cout << " Update vector image DWI" << std::endl;
+		//std::cout << " Update vector image DWI" << std::endl;
 		imageContainer->InsertElement(i, dynamic_cast <DiffusionCalculatorImageType*> (shiftScale->GetOutput()));
 	}
 
@@ -969,7 +959,7 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalcu
 	maskFilter->SetMaskThreshold(m_MaskThreshold);//Get from UI or user-interaction
 	maskFilter->Update();//output is a Image Pointer!!!
 
-	std::cout << "maskFilter: vectorLength = " << maskFilter->GetOutput()->GetVectorLength() << std::endl;
+	//std::cout << "maskFilter: vectorLength = " << maskFilter->GetOutput()->GetVectorLength() << std::endl;
 
 	//itk version of DeepCopy	
 	_MaskVectorImage->SetSpacing(maskFilter->GetOutput()->GetSpacing());
@@ -979,7 +969,7 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalcu
 	_MaskVectorImage->SetVectorLength(maskFilter->GetOutput()->GetVectorLength());
 	//std::cout << " m_MaskVectorImage length 00 0000000= " << this->m_MaskVectorImage->GetVectorLength() << std::endl;
 	_MaskVectorImage->Allocate();
-	std::cout << " m_MaskVectorImage length 00 = " << this->m_MaskVectorImage->GetVectorLength() << std::endl;
+	//std::cout << " m_MaskVectorImage length 00 = " << this->m_MaskVectorImage->GetVectorLength() << std::endl;
 
 
 	typedef itk::ImageRegionConstIterator <DiffusionCalculatorVectorImageType> ConstMaskFilterIteratorType;

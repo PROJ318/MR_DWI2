@@ -169,13 +169,6 @@ signals:
 	///// 
 	void onThreshSlide(double threshhold);
 
-	///// @brief
-	///// In this slot, change the interactor of qvtkwindows to ROI drawing.
-	///// 
-	void onTestButton(bool _istoggled);
-
-
-
 protected:
 
 	void UpdateMaskVectorImage(DicomHelper* inputDcmData, DiffusionCalculatorVectorImageType::Pointer outputImage);//This should be moved to DicomHelper class.

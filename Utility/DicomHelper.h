@@ -1,3 +1,6 @@
+#ifndef DicomHelper_h
+#define DicomHelper_h
+
 #include <vtkDICOMDirectory.h>
 #include <vtkSmartPointer.h>
 #include <vtkDICOMReader.h>
@@ -14,6 +17,9 @@
 
 #define PI 3.141592653589793
 #define RAD  (PI/180.0)
+
+
+
 
 class DicomHelper
 {
@@ -78,3 +84,5 @@ private:
 		int fileIndex, int frameIndex);
 
 };
+
+#endif

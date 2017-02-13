@@ -11,7 +11,6 @@ Module:    vtkRoiInteractor.cxx
 
 #include <vtkImageActor.h>
 #include <vtkRenderWindowInteractor.h>
-#include <vtkImageTracerWidget.h>
 #include <vtkContourWidget.h>
 #include <vtkOrientedGlyphContourRepresentation.h>
 #include <vtkImageActorPointPlacer.h>
@@ -21,7 +20,7 @@ Module:    vtkRoiInteractor.cxx
 #include "vtkObjectFactory.h"
 #include <vtkPolyData.h>
 #include <vtkPolyDataToImageStencil.h>
-#include <vtkSmartPointer.h>
+
 #include <vtkPolyDataMapper.h>
 #include <vtkActor.h>
 #include <vtkImageData.h>
@@ -29,6 +28,7 @@ Module:    vtkRoiInteractor.cxx
 #include <vtkImageAccumulate.h>
 #include <vtkBoundedPlanePointPlacer.h>
 #include <vtkPlane.h>
+#include <vtkRenderWindow.h>
 
 //for debug
 #include <vtkRendererCollection.h>
@@ -41,7 +41,7 @@ Module:    vtkRoiInteractor.cxx
 #include <qobject.h>
 
 
-#include <vtkRenderWindow.h>
+
 
 class vtkTracerCallback :public vtkCommand
 {
@@ -67,7 +67,7 @@ public:
 		vtkOrientedGlyphContourRepresentation *glyContour =
 			vtkOrientedGlyphContourRepresentation::SafeDownCast(rep);
 
-		contourWidget = contour;
+		//contourWidget = contour;
 	
 		vtkSmartPointer<myVtkInteractorStyleImage> style = 
 			vtkSmartPointer<myVtkInteractorStyleImage>::New();
@@ -105,102 +105,126 @@ public:
 		float Min = *imageAccumulate->GetMin()*scalingValue + shiftValue;
 		float std = *imageAccumulate->GetStandardDeviation()*scalingValue + shiftValue;
 
-		QString RoiInfo(QObject::tr("Area : %1").arg(Area));
-		RoiInfo.append("\n");
-		RoiInfo.append(QObject::tr("Mean : %1").arg(Mean));
-		RoiInfo.append("\n");
-		RoiInfo.append(QObject::tr("Max : %1").arg(Max));
-		RoiInfo.append("\n");
-		RoiInfo.append(QObject::tr("Min : %1").arg(Min));
-		RoiInfo.append("\n");
-		RoiInfo.append(QObject::tr("std : %1").arg(std));
-		RoiInfo.append("\n");
-		browser->setText(RoiInfo);
-
-		//contour->GetCurrentRenderer()->AddViewProp(rep);
+		//QString RoiInfo(QObject::tr("Area : %1").arg(Area));
+		//RoiInfo.append("\n");
+		//RoiInfo.append(QObject::tr("Mean : %1").arg(Mean));
+		//RoiInfo.append("\n");
+		//RoiInfo.append(QObject::tr("Max : %1").arg(Max));
+		//RoiInfo.append("\n");
+		//RoiInfo.append(QObject::tr("Min : %1").arg(Min));
+		//RoiInfo.append("\n");
+		//RoiInfo.append(QObject::tr("std : %1").arg(std));
+		//RoiInfo.append("\n");
+		//browser->setText(RoiInfo);
 		
+
+		//QList<QStandardItem *> infoRow;
+		parentItem->child(0, 1)->setText(QString("%1").arg(Area));
+		parentItem->child(0, 2)->setText(QString("%1").arg(Mean));
+		parentItem->child(0, 3)->setText(QString("%1").arg(std));
+		parentItem->child(0, 4)->setText(QString("%1").arg(Max));
+		parentItem->child(0, 5)->setText(QString("%1").arg(Min));
+		//infoRow << new QStandardItem(QString("%1").arg(Mean));
+		//infoRow << new QStandardItem(QString("%1").arg(std));
+		//infoRow << new QStandardItem(QString("%1").arg(Max));
+		//infoRow << new QStandardItem(QString("%1").arg(Min));
+		//parentItem->appendRow(infoRow);
+		//RoiInfo[0] = Area; RoiInfo[1] = Mean; RoiInfo[2] = std; RoiInfo[3] = Max; RoiInfo[4] = Min;
+		
+		//contour->GetCurrentRenderer()->AddViewProp(rep);
+		//QStandardItem* areaItem = infoModel->at(0);
+		//cout << "In CallbackFunc: Area is " << RoiInfo[0] << endl;
+
 		vtkPropCollection* actors = vtkPropCollection::New();
 		glyContour->GetActors(actors);
 		vtkActor* actor = vtkActor::SafeDownCast(actors->GetItemAsObject(0));
 		//actor->SetVisibility(0);
 		cout << "number of actors:" << actors->GetNumberOfItems() << endl;
 
+		*testvalue = 100;
+
 	}
 
-	vtkTracerCallback() : contourWidget(0),scalingValue(0), shiftValue(0), browser(0){};
-	QTextBrowser *browser;
+	vtkTracerCallback() : scalingValue(0), shiftValue(0){};
+	QStandardItem* parentItem;
+	int* testvalue;
+	//QList<QStandardItem *>* infoModel;
+
+	void initialize(float _scalingValue, float _shiftValue, int& test, QStandardItem* _parentItem)
+	{ 
+		scalingValue = _scalingValue; shiftValue = _shiftValue; parentItem = _parentItem;
+		testvalue = &test;
+		cout << parentItem << endl;
+	};
+protected:
 	float scalingValue;
 	float shiftValue;
-	vtkContourWidget* contourWidget;
+	//vtkContourWidget* contourWidget;
 };
 
+
+//static void RoicloseCallbackFunction(vtkObject* caller, long unsigned int eventId,
+//	void* clientData, void* callData);
 //--------
-vtkStandardNewMacro(vtkRoiInteractor);
 vtkRoiInteractor::vtkRoiInteractor()
 {
-	this->QtextBrowser = NULL;
-	//default value---none scaling
-	this->scalingPara[0] = 1;
-	this->scalingPara[1] = 0;
-
+//	this->QtextBrowser = NULL;
 	this->contourWidgetCollection = vtkCollection::New();
-	this->imageActor = vtkImageActor::New();
+	//this->imageActor = vtkImageActor::New();
 }
 
 vtkRoiInteractor::~vtkRoiInteractor()
 {
 	this->contourWidgetCollection->Delete();
-	this->QtextBrowser->destroyed();
-	this->imageActor->Delete();
+	//this->QtextBrowser->destroyed();
+	//this->imageActor->Delete();
 }
 
 //----------------------------------------------------------------------------
-void vtkRoiInteractor::AddWidgetItem()
+void vtkRoiInteractor::initialize(vtkImageActor* imageActor, vtkSmartPointer<vtkRenderWindowInteractor> iInt, QStandardItem * parentItem, float* scalingPara, int& test)
 {
-	//Callback for the statistic calculating
-	vtkSmartPointer<vtkTracerCallback> traceCallback =
-		vtkTracerCallback::New();
-	traceCallback->browser = this->QtextBrowser;
-	traceCallback->scalingValue = this->scalingPara[0];
-	traceCallback->shiftValue = this->scalingPara[1];
+	//default value---none scaling
+	cout << "Initializing new vtk ROI" << endl;;
+	vtkSmartPointer< vtkTracerCallback> traceCallback = vtkTracerCallback::New();
+	traceCallback->initialize(scalingPara[0], scalingPara[1], test, parentItem);
 
+	cout << parentItem << endl;
+	//traceCallback->scalingValue = this->scalingPara[0];
+	//traceCallback->shiftValue = this->scalingPara[1];
 
+	//traceCallback->SetClientData();
+	interactor = iInt;
 	vtkSmartPointer<vtkContourWidget> newContourWidget = vtkSmartPointer<vtkContourWidget>::New();
-	newContourWidget->SetInteractor(this->Interactor);
+	newContourWidget->SetInteractor(interactor);
 	newContourWidget->FollowCursorOn();
+
 	vtkOrientedGlyphContourRepresentation* rep = vtkOrientedGlyphContourRepresentation::New();
 	rep->GetLinesProperty()->SetColor(1, 1, 0);
 	rep->GetLinesProperty()->SetLineWidth(1.5);
-	vtkImageActorPointPlacer* placer = vtkImageActorPointPlacer::New();
-	placer->SetImageActor(this->imageActor);
-	//double* bounds = this->imageActor->GetBounds();
-	//cout << "Bounds:" << bounds[0] << endl;
-	//cout << "Bounds:" << bounds[1] << endl;
-	//cout << "Bounds:" << bounds[2] << endl;
-	//cout << "Bounds:" << bounds[3] << endl;
-	//cout << "Bounds:" << bounds[4] << endl;
-	//cout << "Bounds:" << bounds[5] << endl;
-	//vtkBoundedPlanePointPlacer* placer = vtkBoundedPlanePointPlacer::New();
-	//placer->RemoveAllBoundingPlanes();
-	//placer->SetProjectionNormalToZAxis();
-	//placer->SetProjectionPosition(this->imageActor->GetCenter()[2]);
-	//
-	//vtkPlane* plane1 = vtkPlane::New();
-	//plane1->SetOrigin(bounds[0], bounds[2], bounds[4] + 0.1 );
-	//plane1->SetNormal(0.0, 0.0, 1.0);
-	//placer->AddBoundingPlane(plane1);
 
-	//vtkPlane* plane2 = vtkPlane::New();
-	//plane2->SetOrigin(bounds[1], bounds[3], bounds[5] - 0.1 );
-	//plane2->SetNormal(0.0, 0.0, -1.0);
-	//placer->AddBoundingPlane(plane2);
-	//rep->SetPointPlacer(placer);
+	vtkImageActorPointPlacer* placer = vtkImageActorPointPlacer::New();
+	placer->SetImageActor(imageActor);
+
+	rep->SetPointPlacer(placer);
+	//vtkSmartPointer<vtkCallbackCommand> RoicloseCallback =
+	//	vtkSmartPointer<vtkCallbackCommand>::New();
+	//// Allow the observer to access the sphereSource
+	//RoicloseCallback->SetClientData(&roiInfoRow);
+	//RoicloseCallback->SetCallback(RoicloseCallbackFunction);
+
 	newContourWidget->SetRepresentation(rep);
 	newContourWidget->ContinuousDrawOn();
 	newContourWidget->On();
 	newContourWidget->AddObserver(vtkCommand::EndInteractionEvent, traceCallback);
 
-	cout << "contour Widget" << endl;
+	//std::cout << "in initialize: Area is " << traceCallback->RoiInfo[0] << endl;
+	//roiInfoRow += traceCallback->infoModel;
+	//
+	
+	/*QStandardItem* areaItem = roiInfoRow.at(0);
+	cout << "in initialize: Area is " << areaItem->text().toStdString() << endl;
+	cout << "contour Widget" << endl;*/
+
 	this->contourWidgetCollection->AddItem(newContourWidget);
 }
 
@@ -208,22 +232,35 @@ void vtkRoiInteractor::AddWidgetItem()
 void vtkRoiInteractor::RemoveWidgetIterm(vtkContourWidget* contour)
 {
 	//contour->SetEnabled(0);
-	vtkContourWidget *self = reinterpret_cast<vtkContourWidget*>(contour);
-	self->Initialize(NULL);
+	//vtkContourWidget *self = reinterpret_cast<vtkContourWidget*>(contour);
+	//self->Initialize(NULL);
 
 	this->contourWidgetCollection->RemoveItem(contour);
 }
 
-//----------------------------------------------------------------------------
-void vtkRoiInteractor::SetQTextBrowser(QTextBrowser* browser)
+void vtkRoiInteractor::OnRightButtonDown()
 {
-	if(this->QtextBrowser != browser)
-		this->QtextBrowser = browser;
-}
+	int* clickPos = interactor->GetEventPosition();
+	int numberOfWidgets = this->contourWidgetCollection->GetNumberOfItems();
+	//cout << "number of nodes:" << numberOfWidgets << endl;
 
-//-----------------------------------------------------------------------------
-void vtkRoiInteractor::SetImageActor(vtkImageActor* actor)
-{
-	if (this->imageActor != actor)
-		this->imageActor = actor;
+	if (numberOfWidgets > 0)
+	{
+		for (int i = 0; i < numberOfWidgets; i++)
+		{
+			vtkContourWidget* contour = vtkContourWidget::SafeDownCast(this->contourWidgetCollection->GetItemAsObject(i));
+			vtkContourRepresentation* rep = contour->GetContourRepresentation();
+
+			if (rep->SetActiveNodeToDisplayPosition(clickPos)) //rep->SetActiveNodeToDisplayPosition(clickPos)
+			{
+				this->RemoveWidgetIterm(contour);
+				return;
+			}
+			//}
+		}
+	}
+	// forward event
+	//vtkInteractorStyleImage::OnRightButtonDown();
+
 }
+vtkStandardNewMacro(vtkRoiInteractor);

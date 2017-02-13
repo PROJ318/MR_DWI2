@@ -12,6 +12,8 @@
 //QT include
 #include <QMessageBox>
 #include <QStyleFactory>
+#include <QStandardItemModel>
+#include <QStandardItem>
 #include <qfile.h>
 #include <qdebug.h>
 #include <qstring.h>
@@ -65,14 +67,37 @@ bool cmp(std::pair<float, int> p1, std::pair<float, int> p2)
 	return 0;
 
 }
-
+vtkImageActor* getImageActorFromRender(vtkRenderer* inputRenderer)
+{
+	vtkActorCollection* actorCollection = inputRenderer->GetActors();
+	qDebug() << actorCollection->GetNumberOfItems() << "actors are found" << endl;
+	actorCollection->InitTraversal();
+	for (vtkIdType i = 0; i < actorCollection->GetNumberOfItems(); i++)
+	{
+		vtkActor* nextActor = actorCollection->GetNextActor();
+		qDebug() << "nextActor " << i << " : " << nextActor->GetClassName() << endl;
+		std::string className = nextActor->GetClassName();
+		std::string wantedClass = "vtkImageActor";
+		if (className == wantedClass)
+		{
+			qDebug() << "nextActor " << i << " is a vtkImageActor!" << endl;
+			vtkImageActor* wantActor = dynamic_cast<vtkImageActor*> (nextActor);
+			return wantActor;
+		}
+		else
+		{
+			qDebug() << "nextActor " << i << " : " << nextActor->GetClassName() << endl;
+		}
+	}
+	return NULL;
+}
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent)
 {
 	//Initialize();
 	//CreateQtPartControl(this);
-
+	testvalue = 10;
 	this->m_DicomHelper = NULL;
 	this->sourceImage = vtkSmartPointer<vtkImageData>::New();//VTK image pointer
 
@@ -96,7 +121,11 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	displayLayout = new DisplayPort;
 	this->ui->ViewArea->setLayout(displayLayout);
-	
+
+	roiInfoModel = new QStandardItemModel;
+	this->ui->statisBrowser->setModel(roiInfoModel);
+
+	focusedWdwName = "Source";
 	//ui->toolLine->setPalette(framePalette);
 	//ui->toolLine->setAutoFillBackground(true); // set dockwidget as trasparent floating
 	//ui->dockWidget->setWindowFlags(Qt::FramelessWindowHint);
@@ -116,8 +145,12 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	////Connect Segment buttons
 	////connect(m_Controls->pointer1, SIGNAL(toggled(bool)), this, SLOT(onRoiPointer(bool)));
-	//connect(m_Controls->pointer1, SIGNAL(pressed()), this, SLOT(addROI()));
-	//connect(m_Controls->pointer2, SIGNAL(toggled(bool)), this, SLOT(onCursorPickValue(bool)));
+	connect(ui->pointer1, SIGNAL(pressed()), this, SLOT(addROI()));
+	connect(ui->pointer2, SIGNAL(toggled(bool)), this, SLOT(onCursorPickValue(bool)));
+
+	connect(ui->statisBrowser, SIGNAL(clicked(QModelIndex )), this, SLOT(onClickTreeView(QModelIndex )));
+
+	//connect(displayLayout, SIGNAL(signalMouseAt(const QString)), this, SLOT(onFocusWdw(const QString)));
 }
 
 void MainWindow::onStartdicom()
@@ -131,7 +164,6 @@ void MainWindow::onStartdicom()
 
     //connect();
 }
-
 
 void MainWindow::onProcButtonClicked(bool addOrRemove, vtkSmartPointer <vtkImageData> data, const QString imageName, const float scale, const float slope)
 {	
@@ -341,12 +373,11 @@ void MainWindow::DisplayDicomInfo(vtkSmartPointer <vtkImageData> imageData)
 void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, std::string imageLabel)
 {
 	//Is this necessary?
-	/*if (qvtkWidget->GetRenderWindow()->GetInteractor())
-	{
-	qvtkWidget->GetRenderWindow()->Finalize();
-	qvtkWidget->GetRenderWindow()->GetInteractor()->ExitCallback();
-	}*/
-
+	//if (qvtkWidget->GetRenderWindow()->GetInteractor())
+	//{
+	//qvtkWidget->GetRenderWindow()->Finalize();
+	//qvtkWidget->GetRenderWindow()->GetInteractor()->ExitCallback();
+	//}
 	//Done inside interacterstyle rather than here, so as to stay the same as in Source image viewer
 	//double *imageDataRange = new double[2];
 	//imageDataRange = imageData->GetScalarRange();//Replace with to be displayed
@@ -357,7 +388,6 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	//	//color map 
 	//	colorWindow = 255.0;
 	//	colorLevel = 127.5;
-
 	//}
 	//else
 	//{
@@ -408,6 +438,14 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	myInteractorStyle->SetStatusMapper(sliceTextMapper);
 	myInteractorStyle->GetCurrentSliceNumber(m_SourceImageCurrentSlice);
 
+	float scalingPara[2];
+	scalingPara[0] = 1;
+	scalingPara[1] = 0;
+	std::cout << "After interactor slice number is " << m_SourceImageCurrentSlice << std::endl;
+	//myInteractorStyle->GetRoiInteraction()->SetInteractor(renderWindowInteractor);
+	//myInteractorStyle->GetRoiInteraction()->SetImageActor();
+	//myInteractorStyle->GetRoiInteraction()->initialize(imageViewer->GetImageActor(), ui->statisBrowser, renderWindowInteractor, scalingPara);
+	
 	renderWindowInteractor->SetInteractorStyle(myInteractorStyle);
 	renderWindowInteractor->AddObserver(vtkCommand::MouseWheelForwardEvent, this, &MainWindow::ShareWindowEvent);
 	renderWindowInteractor->AddObserver(vtkCommand::MouseWheelBackwardEvent, this, &MainWindow::ShareWindowEvent);
@@ -423,6 +461,7 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	qvtkWidget->GetRenderWindow()->SetInteractor(renderWindowInteractor);//crutial to let qvtkWidget share the same interactor with imageViewer
 	//std::cout << "QVTKWIDEGT SIZE after interactor= " << qvtkWidget->width() << "-" << qvtkWidget->height() << std::endl;
 	//imageViewer->SetupInteractor(renderWindowInteractor);
+	qvtkWidget->show();
 
 	imageViewer->GetRenderer()->ResetCamera(); //Reset camera and then render is better
 	vtkSmartPointer<vtkCamera> camera = imageViewer->GetRenderer()->GetActiveCamera();
@@ -431,7 +470,7 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	//imageViewer->GetRenderer()->SetBackground(0.2, 0.3, 0.4);
 	qvtkWidget->GetRenderWindow()->Render();
 	renderWindowInteractor->Initialize();
-	qvtkWidget->show();//qvtkWidget->show() changes window size!!!!
+	//qvtkWidget->show() changes window size!!!!
 	//std::cout << "QVTKWIDEGT SIZE after show= " << qvtkWidget->width() << "-" << qvtkWidget->height() << std::endl;
 }
 
@@ -536,7 +575,7 @@ void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKW
 
 }
 
-void MainWindow::SetImageFillWindow(vtkSmartPointer <vtkCamera> & camera, vtkSmartPointer <vtkImageData> imageData, double width, double height){
+void MainWindow::SetImageFillWindow(vtkSmartPointer<vtkCamera> camera, vtkSmartPointer <vtkImageData> imageData, double width, double height){
 
 	if (!(camera || imageData)) return;
 
@@ -579,6 +618,219 @@ void MainWindow::SetImageFillWindow(vtkSmartPointer <vtkCamera> & camera, vtkSma
 	camera->SetPosition(center[0], center[1], focalDepth);
 	//camera->SetViewAngle(80);
 }
+
+void MainWindow::onCursorPickValue(bool _istoggled)
+{
+	std::cout << "test value is" << testvalue << std::endl;
+	std::cout << "After interactor slice number is " << m_SourceImageCurrentSlice << std::endl;
+
+	//qDebug() << "it's OK, areaInROI" << roiInfoModel->item(0, 0)->text() << endl;
+	//if (_istoggled)
+	//{
+	//	QHash < const QString, QWidget * > currentWindows = displayLayout->getAllWindow();
+	//	QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
+	//	while (wdwIter.hasNext()) {
+	//		wdwIter.next();
+	//		QVTKWidget *thisWindow = static_cast <QVTKWidget*> (wdwIter.value());
+	//		thisWindow->setAutomaticImageCacheEnabled(true);
+	//		vtkEventQtSlotConnect* Connections;
+	//		Connections = vtkEventQtSlotConnect::New();
+	//		QString imageLabel = wdwIter.key();
+	//		Connections->Connect(thisWindow->GetRenderWindow()->GetInteractor(), vtkCommand::MouseMoveEvent,
+	//			this, SLOT(onDisplayPickValue(vtkObject*, unsigned long, void*, void*, vtkCommand*)), &imageLabel);
+	//	}
+	//}
+	//else
+	//{
+	//	ShareWindowEvent();
+	//}
+
+}
+
+void MainWindow::onDisplayPickValue(vtkObject* obj, unsigned long, void* client_data, void*, vtkCommand*)
+{
+	//vtkRenderWindow* _renderWindow = static_cast<vtkRenderWindow*>(renderWindow);
+	// get interactor
+	vtkRenderWindowInteractor* rwi = vtkRenderWindowInteractor::SafeDownCast(obj);
+	QString* _imageLabel = static_cast<QString*>(client_data);
+
+	//vtkRenderWindowInteractor *rwi = _renderWindow->GetInteractor();
+	vtkRenderer* renderer = rwi->GetRenderWindow()->GetRenderers()->GetFirstRenderer();
+	vtkImageActor* _Actor = static_cast<myVtkInteractorStyleImage*>(rwi->GetInteractorStyle())->GetImageActor();
+	/*(vtkImageActor*)rwi->GetRenderWindow()->GetRenderers()
+	->GetFirstRenderer()->GetViewProps()->GetItemAsObject(3);*/
+
+
+	_Actor->InterpolateOff();
+	vtkCornerAnnotation* _Annotation = (vtkCornerAnnotation*)rwi->GetRenderWindow()->GetRenderers()
+		->GetFirstRenderer()->GetViewProps()->GetItemAsObject(2);
+	vtkImageData* _image = _Actor->GetMapper()->GetInput();
+	//static_cast<myVtkInteractorStyleImage*>(rwi->GetInteractorStyle())->GetInputImage();
+
+	rwi->GetPicker()->PickFromListOn();
+	rwi->GetPicker()->AddPickList(_Actor);
+	rwi->GetPicker()->Pick(rwi->GetEventPosition()[0], rwi->GetEventPosition()[1],
+		0.0, renderer);
+
+	// There could be other props assigned to this picker, so 
+	// make sure we picked the image actor
+	vtkAbstractPropPicker *picker;
+	picker = vtkAbstractPropPicker::SafeDownCast(rwi->GetPicker());
+	vtkAssemblyPath* path = picker->GetPath();
+	bool validPick = false;
+	if (path)
+	{
+		vtkCollectionSimpleIterator sit;
+		path->InitTraversal(sit);
+		vtkAssemblyNode *node;
+		for (int i = 0; i < path->GetNumberOfItems() && !validPick; ++i)
+		{
+			node = path->GetNextNode(sit);
+			if (_Actor == vtkImageActor::SafeDownCast(node->GetViewProp()))
+			{
+				validPick = true;
+			}
+		}
+	}
+
+	if (!validPick)
+	{
+		_Annotation->SetText(1, "Off Image");
+		rwi->Render();
+		return;
+	}
+
+	// Get the world coordinates of the pick
+	double pos[3];
+	rwi->GetPicker()->GetPickPosition(pos);
+	int image_coordinate[3];
+
+	double spacing[3];
+	_image->GetSpacing(spacing);
+
+	// vtkImageViewer2::SLICE_ORIENTATION_XY
+	image_coordinate[0] = vtkMath::Round(pos[0] / spacing[0]);
+	image_coordinate[1] = vtkMath::Round(pos[1] / spacing[1]);
+	image_coordinate[2] = 0; // it's 2D image, the third dimension was set to zero.
+
+	std::string message = "Location: ( ";
+	message += vtkVariant(image_coordinate[0]).ToString();
+	message += ", ";
+	message += vtkVariant(image_coordinate[1]).ToString();
+	//message += ", ";
+	//message += vtkVariant(image_coordinate[2]).ToString();
+	message += "]\nValue: ";
+
+	float tuple_float = _image->GetScalarComponentAsFloat(image_coordinate[0], image_coordinate[1], image_coordinate[2], 0);
+
+	tuple_float = tuple_float * ScalingParameters.value(*_imageLabel + "_s") + ScalingParameters.value(*_imageLabel + "_k");
+	tuple_float = int(tuple_float * 100);
+	tuple_float = tuple_float / 100;
+	message += vtkVariant(tuple_float).ToString();
+
+	if (*_imageLabel == "ADC")
+	{
+		tuple_float *= 1000;
+		message += vtkVariant(tuple_float).ToString();
+		message += "*10^(-3)mm2/s";
+	}
+	else{
+		message += vtkVariant(tuple_float).ToString();
+	}
+
+	//switch (*_imageLabel)
+	//{
+	//case "ADC":
+	//	tuple_float = tuple_float * m_ScalingParameter[2*ADC] + m_ScalingParameter[2 * ADC+1];
+
+	//	tuple_float *= 1000;  // for 10^-3 display
+	//	// mentain the two bits after the decimal point
+	//	tuple_float = int(tuple_float * 100);
+	//	tuple_float = tuple_float / 100;
+
+	//	message += vtkVariant(tuple_float).ToString();
+	//	message += "*10^(-3)mm2/s";
+	//	break;
+	//case FA:
+	//	tuple_float = tuple_float * m_ScalingParameter[2*FA] + m_ScalingParameter[2*FA+1];
+	//	//no need scientific notation
+	//	tuple_float = int(tuple_float * 100);
+	//	tuple_float = tuple_float / 100;
+	//	message += vtkVariant(tuple_float).ToString();
+	//	break;
+	//default:
+	//	message = " ";
+	//}
+
+	_Annotation->SetText(1, message.c_str());
+	renderer->AddActor(_Annotation);
+	rwi->Render();
+}
+
+void MainWindow::onClickTreeView(const QModelIndex &index)
+{
+	QStandardItem *item = roiInfoModel->itemFromIndex(index);
+	qDebug() << "User clicked item at row: " << index.row() << " col: " << index.column() << "is " << item->text() << endl;
+}
+
+void MainWindow::onFocusWdw(const QString widgetName)
+{
+	qDebug() << "mouse is at" << widgetName;
+	focusedWdwName = widgetName;
+}
+
+void MainWindow::addROI() //bool _istoggled
+{
+	connect(displayLayout, SIGNAL(signalMouseAt(const QString)), this, SLOT(onFocusWdw(const QString)));
+	//Set Model
+	if (!focusedWdwName.isEmpty())
+	{ 
+	QStandardItem *item = roiInfoModel->invisibleRootItem();
+	QList<QStandardItem *> roiParentRow;
+	roiParentRow << new QStandardItem("ROI1") << new QStandardItem("Area") << new QStandardItem("Mean") << new QStandardItem("std") << new QStandardItem("Max") << new QStandardItem("Min");
+	item->appendRow(roiParentRow);
+	roiInfoModel->setHeaderData(0, Qt::Horizontal, "Item", Qt::DisplayRole);
+	roiInfoModel->setHeaderData(1, Qt::Horizontal, "Area", Qt::DisplayRole);
+	roiInfoModel->setHeaderData(2, Qt::Horizontal, "Mean", Qt::DisplayRole);
+	roiInfoModel->setHeaderData(3, Qt::Horizontal, "Std", Qt::DisplayRole);
+	roiInfoModel->setHeaderData(4, Qt::Horizontal, "Max", Qt::DisplayRole);
+	roiInfoModel->setHeaderData(5, Qt::Horizontal, "Min", Qt::DisplayRole);
+	//roiParentRow << new QStandardItem(second);
+	//roiParentRow << new QStandardItem(third);
+	qDebug() << "add ROI on window " << focusedWdwName;
+
+	QWidget* focusWindow = displayLayout->getWindow(focusedWdwName);
+	QVTKWidget *thisWindow = static_cast <QVTKWidget*> (focusWindow);
+
+	float scalingPara[2];
+	scalingPara[0] = ScalingParameters.value(focusedWdwName + '_s');
+	scalingPara[1] = ScalingParameters.value(focusedWdwName + '_k');
+	qDebug() << focusedWdwName << ": slope = " << scalingPara[0] << "intercept =" << scalingPara[1];
+	vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
+
+	qDebug() << thisWindow->GetRenderWindow()->GetRenderers()->GetNumberOfItems() << "renderers are found" << endl;
+
+	vtkImageActor* imageAct = static_cast<myVtkInteractorStyleImage*>(renInter->GetInteractorStyle())->GetImageActor();
+
+	//vtkSmartPointer<vtkImageActor> imageAct = getImageActorFromRender(thisWindow->GetRenderWindow()->GetRenderers()->GetFirstRenderer());
+	QList<QStandardItem *> testRow;
+	testRow << new QStandardItem(focusedWdwName) << new QStandardItem("1") << new QStandardItem("2") << new QStandardItem("3") << new QStandardItem("4") << new QStandardItem("5");
+	roiParentRow.first()->appendRow(testRow);
+	vtkSmartPointer<vtkRoiInteractor> RoiInterObs = vtkRoiInteractor::New();
+
+	RoiInterObs->initialize(imageAct, renInter, roiParentRow.first(), scalingPara, testvalue);
+	std::cout << "test value is" << testvalue << std::endl;
+	}
+
+
+	//roiParentRow.first()->appendRow(testRow);
+	//QStandardItem * areaInROI = roiParentRow.first()->child(0, 0);
+	/*areaInROI = roiParentRow.first()->child(0, 1);
+	qDebug() << "it's OK, meanInROI" << areaInROI->text() << endl;*/
+	//style->GetRoiInteraction()->AddWidgetItem();
+}
+
+
 
 
 

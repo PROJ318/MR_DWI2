@@ -52,15 +52,18 @@ protected:
 	vtkImageActor* _imageActor;
 	vtkImageData* _OriginalInputImageData;
 	vtkRenderer* _currentRender;
-	vtkContourWidget* contourWidget[5];
-	vtkRoiInteractor* roiInteraction;
+	
+	//vtkContourWidget* contourWidget[5];
+	//vtkRoiInteractor* roiInteraction;
 
 public:
 	void SetImageViewer(vtkImageViewer2* imageViewer);
+
 	vtkImageData* GetInputImage()
 	{
 		return _OriginalInputImageData;
 	}
+
 	vtkImageActor* GetImageActor()
 	{
 		return _imageActor;
@@ -75,10 +78,10 @@ public:
 		_CurrentSlice = &CurrentSlice;
 	}
 
-	vtkRoiInteractor* GetRoiInteraction()
-	{
-		return this->roiInteraction;
-	}
+	//vtkRoiInteractor* GetRoiInteraction()
+	//{
+	//	return this->roiInteraction;
+	//}
 
 	void SetDefaultWindowLevel(int currentSlice, int currentComponent);
 
@@ -97,7 +100,7 @@ protected:
 
 	virtual void OnMouseWheelBackward();
 
-	virtual void OnRightButtonDown();
+	//virtual void OnRightButtonDown();
 	//Get keybord input, only support Reset window level for now
 	virtual void OnChar();
 

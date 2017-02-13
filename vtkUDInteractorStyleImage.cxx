@@ -26,12 +26,14 @@
 
 myVtkInteractorStyleImage::myVtkInteractorStyleImage()
 {
-	roiInteraction = vtkRoiInteractor::New();
+	//roiInteraction = vtkRoiInteractor::New();
 	_ImageViewer = vtkSmartPointer<vtkImageViewer2>::New();
 	_StatusMapper = vtkSmartPointer<vtkTextMapper>::New();
 	_Component = 0;
 }
-void myVtkInteractorStyleImage::SetImageViewer(vtkImageViewer2* imageViewer) {
+
+void myVtkInteractorStyleImage::SetImageViewer(vtkImageViewer2* imageViewer) 
+{
 	_ImageViewer = imageViewer;
 	_MinSlice = imageViewer->GetSliceMin();
 	_MaxSlice = imageViewer->GetSliceMax();
@@ -182,10 +184,7 @@ void myVtkInteractorStyleImage::MoveSliceComponentForward()
 		scalarComponent->Update();
 		_ImageViewer->SetInputData(scalarComponent->GetOutput());
 		_ImageViewer->SetSlice(_Slice);
-
-
-
-		//_ImageViewer->Render();
+		_ImageViewer->Render();
 
 		//Needed to set input back???
 		//_ImageViewer->SetInputData(_OriginalInputImageData);
@@ -207,9 +206,6 @@ void myVtkInteractorStyleImage::MoveSliceComponentBackward()
 		scalarComponent->Update();
 		_ImageViewer->SetInputData(scalarComponent->GetOutput());
 		_ImageViewer->SetSlice(_Slice);
-
-
-
 		_ImageViewer->Render();
 
 		//Needed to set input back???
@@ -257,31 +253,31 @@ void myVtkInteractorStyleImage::OnMouseWheelBackward() {
 }
 
 //Right button click for deleting the choosed ROI, add by Wenxing
-void myVtkInteractorStyleImage::OnRightButtonDown()
-{
-	int* clickPos = this->GetInteractor()->GetEventPosition();
-	int numberOfWidgets = this->roiInteraction->contourWidgetCollection->GetNumberOfItems();
-	//cout << "number of nodes:" << numberOfWidgets << endl;
-
-	if (numberOfWidgets > 0)
-	{
-		for (int i = 0; i < numberOfWidgets; i++)
-		{
-			vtkContourWidget* contour = vtkContourWidget::SafeDownCast(this->roiInteraction->contourWidgetCollection->GetItemAsObject(i));
-			vtkContourRepresentation* rep = contour->GetContourRepresentation();
-
-			if (rep->SetActiveNodeToDisplayPosition(clickPos)) //rep->SetActiveNodeToDisplayPosition(clickPos)
-			{
-				this->roiInteraction->RemoveWidgetIterm(contour);
-				return;
-			}
-			//}
-		}
-	}
-	// forward event
-	vtkInteractorStyleImage::OnRightButtonDown();
-
-}
+//void myVtkInteractorStyleImage::OnRightButtonDown()
+//{
+//	int* clickPos = this->GetInteractor()->GetEventPosition();
+//	int numberOfWidgets = this->roiInteraction->contourWidgetCollection->GetNumberOfItems();
+//	//cout << "number of nodes:" << numberOfWidgets << endl;
+//
+//	if (numberOfWidgets > 0)
+//	{
+//		for (int i = 0; i < numberOfWidgets; i++)
+//		{
+//			vtkContourWidget* contour = vtkContourWidget::SafeDownCast(this->roiInteraction->contourWidgetCollection->GetItemAsObject(i));
+//			vtkContourRepresentation* rep = contour->GetContourRepresentation();
+//
+//			if (rep->SetActiveNodeToDisplayPosition(clickPos)) //rep->SetActiveNodeToDisplayPosition(clickPos)
+//			{
+//				this->roiInteraction->RemoveWidgetIterm(contour);
+//				return;
+//			}
+//			//}
+//		}
+//	}
+//	// forward event
+//	vtkInteractorStyleImage::OnRightButtonDown();
+//
+//}
 
 //Get keybord input, only support Reset window level for now
 void myVtkInteractorStyleImage::OnChar()
