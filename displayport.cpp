@@ -2,9 +2,14 @@
 #include "qdebug.h"
 #include "qevent.h"
 
-DisplayPort::DisplayPort(QWidget *grid)
+DisplayPort::DisplayPort(QWidget* p, Qt::WindowFlags f) :QFrame(p, f | Qt::MSWindowsOwnDC)
 {
 	//this->DC_gridlayout = grid;
+	//this->setParent(Parent);
+	gridlayout = new QGridLayout(this);
+	gridlayout->setHorizontalSpacing(1);
+	gridlayout->setVerticalSpacing(1);
+	this->setLayout(gridlayout);	
 }
 
 DisplayPort::~DisplayPort()
@@ -47,7 +52,7 @@ void DisplayPort::pos2Index(int& i, int row, int col)
 	}
 }
 
-void DisplayPort::insertWindow(QWidget* wdw, const QString imageLabel)
+void DisplayPort::insertWindow(QWidget* wdgt, const QString imageLabel)
 {
 	DC_LayoutMap.push_back(imageLabel);
 	int index = DC_LayoutMap.size();
@@ -56,12 +61,32 @@ void DisplayPort::insertWindow(QWidget* wdw, const QString imageLabel)
 	int row(-9), col(-9);
 	index2Pos(index, row, col);
 	//qDebug()<<"row = "<<row<<" col ="<<col<<endl;
-	this->addWidget(wdw, row, col);
-	wdw->installEventFilter(this);
-	this->update();
+	QFrame* wdw;
+	//wdw->setLineWidth(2);
+	//wdw->setMidLineWidth(0);
+	//wdw->setFrameShape(QFrame::Box);
+	//wdw->setFrameShadow(QFrame::Raised);
+	wdw = new QFrame(this);
+	//frameHash.insert(imageLabel, wdw);
+
+	QHBoxLayout *wdwlayout = new QHBoxLayout;
+	wdw->setLayout(wdwlayout);
+	wdwlayout->setContentsMargins(2, 2, 2, 2);
+	this->gridlayout->addWidget(wdw, row, col);	
+
+	wdgt->setParent(wdw);
+
+	//QWidget * Widget = wdw->childAt(wdw->geometry().center());
+	//if (!Widget){ qDebug() << "Cannot get widget <" << imageLabel << "> "<< endl; }
+
+	wdwlayout->addWidget(wdgt);
+	wdw->show(); wdgt->show();
+	wdgt->installEventFilter(this);
+
+	this->gridlayout->update();
 }
 
-bool DisplayPort::eventFilter(QObject *watched, QEvent *event)
+bool DisplayPort::eventFilter(QObject *watched, QEvent *Fevent)
 {
 
 	int flag(-1), counter(-1); //the first one cannot be removed
@@ -69,28 +94,76 @@ bool DisplayPort::eventFilter(QObject *watched, QEvent *event)
 	for (counter = 1; (counter < DC_LayoutMap.size() + 1) && flag < 0;)
 	{
 		index2Pos(counter, row, col);
+		QLayoutItem *Item = this->gridlayout->itemAtPosition(row, col);
+		QFrame * frameWidget = static_cast<QFrame* >(Item->widget());
+		QObject * curWidget = frameWidget->childAt(10, 10);
 		//qDebug() << "[DISPLAYPORT]" << DC_LayoutMap[counter - 1].c_str() << "_" << imageLabel.c_str() << "_" << endl;
-		if (watched == this->itemAtPosition(row, col)->widget())//if equal
+		if (watched == curWidget)//if equal
 		{
 			flag = 1;
-			//qDebug() << "Found widget at counter = " << counter << endl;
+			//qDebug() << "Yes, Found widget at counter = " << DC_LayoutMap[counter - 1] << endl;
 		}
 		else{
+			//qDebug() << "No, event is at widget " << DC_LayoutMap[counter - 1] << endl;
 			counter++;
 		}
 	}
-	if (flag>0){
-		if (event->type() == QEvent::Enter)
+
+	// qDebug()<<"mouse is in widget ["<<row<<"-"<<col<<"] "<<DC_LayoutMap[counter-1]<<endl;
+	if (flag>0){	
+		if (Fevent->type() == QEvent::MouseButtonDblClick)
 		{
-			// qDebug()<<"mouse is in widget ["<<row<<"-"<<col<<"] "<<DC_LayoutMap[counter-1]<<endl;
-			emit signalMouseAt(DC_LayoutMap[counter - 1]);
+			qDebug() << "focus caught in [" << row << "-" << col << "] " <<DC_LayoutMap[counter-1]<<endl;
+			emit signalFocusIn(DC_LayoutMap[counter - 1]);
 			return true;
+		}else if (Fevent->type() == QEvent::Wheel)
+		{
+			QWheelEvent* e = static_cast<QWheelEvent*>(Fevent);
+			emit signalWheel(DC_LayoutMap[counter - 1], e->delta(), e->orientation());
+			return false;
+		}
+		else if (Fevent->type() == QEvent::MouseButtonPress || Fevent->type() == QEvent::MouseButtonRelease || Fevent->type() == QEvent::MouseMove)
+		{			
+			QMouseEvent* e = static_cast<QMouseEvent*>(Fevent);	
+			if (e->source() == Qt::MouseEventNotSynthesized)
+			{
+				//onLabelWdw(DC_LayoutMap[counter - 1]);
+				e->ignore();
+				//qDebug() << "Real Mouse Button Pressed at [" << e->x() << "-" << e->y() << "] of" << DC_LayoutMap[counter - 1] << " accepted? " << e->isAccepted() << endl;
+				emit signalMouseEvent(e, DC_LayoutMap[counter - 1]);
+			}else{
+				//qDebug() << "Synthetic Mouse Button Pressed at [" << e->x() << "-" << e->y() << "] of" << DC_LayoutMap[counter - 1] << " accepted? " << e->isAccepted()<< endl;
+			}
+			return false;
+		}
+		else if (Fevent->type() == QEvent::Resize)
+		{
+			QResizeEvent* e = static_cast<QResizeEvent*>(Fevent);
+			emit signalResizeEvent(DC_LayoutMap[counter - 1],e->oldSize(),e->size());
+		}
+		else if (Fevent->type() == QEvent::KeyPress || Fevent->type() == QEvent::KeyRelease)
+		{
+			QKeyEvent* e = static_cast<QKeyEvent*>(Fevent);
+			if (!e->isAccepted())
+			{
+				//onLabelWdw(DC_LayoutMap[counter - 1]);
+				//qDebug() << "Key [" <<e->text() << "] is" << "pressed" << endl;
+				//QMouseEvent* newEvent;
+				//newEvent = new QMouseEvent(e->type(), e->localPos(), e->windowPos(),
+				//	e->screenPos(), e->button(), e->buttons(),
+				//	e->modifiers(), Qt::MouseEventSynthesizedByQt);
+				//newEvent->ignore();
+				//emit signalKeyEvent(e, DC_LayoutMap[counter - 1]);
+			}
+			else{
+				//qDebug() << " Key accepted? " << e->isAccepted() << endl;
+			}
+			return false;
 		}
 	}
-	return QObject::eventFilter(watched, event);
+
+	return QObject::eventFilter(watched, Fevent);
 }
-
-
 
 QWidget* DisplayPort::getWindow(const QString imageLabel)
 {
@@ -100,12 +173,19 @@ QWidget* DisplayPort::getWindow(const QString imageLabel)
 		int row(-1), col(-1);
 		index2Pos(counter, row, col);
 		//qDebug() << "[DISPLAYPORT] Retrieving widget " << imageLabel << "from <" << row << "-" << col << ">" << endl;
-		QLayoutItem *Item = this->itemAtPosition(row, col);
-		QWidget * Widget = Item->widget();
-		return Widget;
+		QLayoutItem *Item = this->gridlayout->itemAtPosition(row, col);
+		QFrame * frameWidget = static_cast<QFrame* >(Item->widget());
+		QWidget * curWidget = frameWidget->childAt(10,10);
+		//QWidget * curWidget = (frameHash.value(imageLabel))->childAt((frameHash.value(imageLabel))->geometry().center());
+		if (!curWidget)
+		{
+			qDebug() << "Cannot get widget <" << imageLabel <<"> at " << row << "-" << col << endl;
+		}
+		return curWidget;
 	}
 	else
 	{
+
 		return NULL;
 	}
 }
@@ -119,10 +199,14 @@ QHash <const QString, QWidget * >  DisplayPort::getAllWindow()
 	{
 		int row, col;
 		index2Pos(index, row, col);
-		QLayoutItem *Item = this->itemAtPosition(row, col);
-		QWidget * Widget = Item->widget();
+		QLayoutItem *Item = this->gridlayout->itemAtPosition(row, col);
+		QFrame * frameWidget = static_cast<QFrame* >(Item->widget());
+		QWidget * Widget = frameWidget->childAt(10, 10);
 		if (Widget != NULL) {
 			curWidgets.insert(*it, Widget);
+		}
+		else{
+			qDebug() << "Cannot get widget at " << row << "-" << col << endl;
 		}
 	}
 	return curWidgets;
@@ -170,17 +254,22 @@ void DisplayPort::removeWindow(const QString imageLabel)
 		index2Pos(counter, rowT, colT); //deleting pos
 		index2Pos(DC_LayoutMap.size(), rowF, colF); //last pos
 		//qDebug() << "[DISPLAYPORT]moving window from " << rowF << ":" << colF << " to " << rowT << ":" << colT << endl;
-		QLayoutItem *ItemF = this->itemAtPosition(rowF, colF);
+		QLayoutItem *ItemF = this->gridlayout->itemAtPosition(rowF, colF);
 		QWidget * WidgetF = ItemF->widget();
-		QLayoutItem *ItemT = this->itemAtPosition(rowT, colT);
+		QLayoutItem *ItemT = this->gridlayout->itemAtPosition(rowT, colT);
 		QWidget * WidgetT = ItemT->widget();
 
 		if (WidgetF != NULL) {
-			this->addWidget(WidgetF, rowT, colT); //move F to T pos.
+			this->gridlayout->addWidget(WidgetF, rowT, colT); //move F to T pos.
 		}
 		if (WidgetT != NULL) {
-			//this->removeWidget(WidgetT);
-			WidgetT->removeEventFilter(this);
+
+			//WidgetT->removeEventFilter(this);						
+			QFrame * frameWidget = static_cast<QFrame* >(WidgetT);
+			QWidget * curWidget = frameWidget->childAt(10, 10);
+			curWidget->removeEventFilter(this);
+
+			this->gridlayout->removeWidget(WidgetT);
 			WidgetT->setParent(NULL);
 			delete WidgetT;
 		}
@@ -204,4 +293,33 @@ void DisplayPort::PrintWdwLayout()
 		index2Pos(index, row, col);
 		qDebug() << "[DISPLAYPORT] <" << row << " , " << col << "> renders->" << (*it) << endl;
 	}
+}
+
+void DisplayPort::onLabelWdw(const QString imageLabel)
+{
+
+	qDebug() << "labeling wdw " << imageLabel << endl;
+	int index = getWidgetInd(imageLabel);
+	int row, col;
+	index2Pos(index, row, col);
+	QLayoutItem *Item = this->gridlayout->itemAtPosition(row, col);
+	QFrame * frame = static_cast<QFrame* >(Item->widget());
+
+	frame->setLineWidth(3);
+	frame->setMidLineWidth(0);
+	frame->setFrameStyle(QFrame::Box | QFrame::Plain);
+	frame->setStyleSheet("border-color: rgb(38, 213, 169);");
+	//frame->setFrameShape(QFrame::Box);
+	//frame->setFrameShadow(QFrame::Raised);
+}
+
+void DisplayPort::onRemoveLabelWdw(const QString imageLabel)
+{
+	int index = getWidgetInd(imageLabel);
+	int row, col;
+	index2Pos(index, row, col);
+	QLayoutItem *Item = this->gridlayout->itemAtPosition(row, col);
+	QFrame * frame = static_cast<QFrame* >(Item->widget());
+
+	frame->setFrameShape(QFrame::NoFrame);	
 }

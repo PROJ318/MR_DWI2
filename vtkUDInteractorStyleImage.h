@@ -7,7 +7,6 @@
 #include <vtkRoiInteractor.h>
 #include <vtkSmartPointer.h>
 #include <vtkTextMapper.h>
-
 class vtkImageData;
 class vtkImageProperty;
 class vtkImageActor;
@@ -16,6 +15,7 @@ class vtkRenderWindowInteractor;
 class vtkRenderer;
 class vtkImageViewer2;
 class vtkContourWidget;
+
 
 #include <sstream>
 
@@ -38,7 +38,7 @@ protected:
 	myVtkInteractorStyleImage();
 	~myVtkInteractorStyleImage() {}
 	vtkSmartPointer<vtkImageViewer2> _ImageViewer;
-	vtkSmartPointer<vtkTextMapper> _StatusMapper;
+	//vtkSmartPointer<vtkTextMapper> _StatusMapper;
 	int _Slice;
 	int _MinSlice;
 	int _MaxSlice;
@@ -48,16 +48,22 @@ protected:
 
 	int _Component;
 	int _MaxComponent;
-
+	bool _ColorImage;
 	vtkImageActor* _imageActor;
-	vtkImageData* _OriginalInputImageData;
+	vtkSmartPointer<vtkImageData> _OriginalInputImageData;
 	vtkRenderer* _currentRender;
-	
+
 	//vtkContourWidget* contourWidget[5];
 	//vtkRoiInteractor* roiInteraction;
 
 public:
 	void SetImageViewer(vtkImageViewer2* imageViewer);
+
+	//void InitialSlice(int minSlice, int maxSlice)
+	//{
+	//	_MinSlice = minSlice;
+	//	_MaxSlice = maxSlice;
+	//}
 
 	vtkImageData* GetInputImage()
 	{
@@ -69,22 +75,21 @@ public:
 		return _imageActor;
 	}
 
-	void SetStatusMapper(vtkTextMapper* statusMapper) {
-		_StatusMapper = statusMapper;
-	}
+	//void SetStatusMapper(vtkTextMapper* statusMapper) {
+	//	_StatusMapper = statusMapper;
+	//}
 
-	void GetCurrentSliceNumber(int & CurrentSlice)
-	{
-		_CurrentSlice = &CurrentSlice;
-	}
+	//void GetCurrentSliceNumber(int & CurrentSlice)
+	//{
+	//	_CurrentSlice = &CurrentSlice;
+	//}
 
 	//vtkRoiInteractor* GetRoiInteraction()
 	//{
 	//	return this->roiInteraction;
 	//}
 
-	void SetDefaultWindowLevel(int currentSlice, int currentComponent);
-
+	void SetDefaultWindowLevel();
 protected:
 	void MoveSliceForward();
 
@@ -105,6 +110,8 @@ protected:
 	virtual void OnChar();
 
 	virtual void WindowLevel();
+
+
 };
 
 #endif

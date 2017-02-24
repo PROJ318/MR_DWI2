@@ -39,6 +39,7 @@ Module:    vtkRoiInteractor.cxx
 
 //QT related included files
 #include <qobject.h>
+#include <qdebug.h>
 
 
 
@@ -117,13 +118,25 @@ public:
 		//RoiInfo.append("\n");
 		//browser->setText(RoiInfo);
 		
+		cout << parentItem->rowCount() << endl;
+		for (int row = 0; row < parentItem->rowCount(); ++row)
+		{
+			QStandardItem* child = parentItem->child(row);
+			if (child->text() == roiName)
+			{
+				parentItem->child(row, 1)->setText(QString("%1").arg(Area));
+				parentItem->child(row, 2)->setText(QString("%1").arg(Mean));
+				parentItem->child(row, 3)->setText(QString("%1").arg(std));
+				parentItem->child(row, 4)->setText(QString("%1").arg(Max));
+				parentItem->child(row, 5)->setText(QString("%1").arg(Min));
+			}
 
-		//QList<QStandardItem *> infoRow;
-		parentItem->child(0, 1)->setText(QString("%1").arg(Area));
-		parentItem->child(0, 2)->setText(QString("%1").arg(Mean));
-		parentItem->child(0, 3)->setText(QString("%1").arg(std));
-		parentItem->child(0, 4)->setText(QString("%1").arg(Max));
-		parentItem->child(0, 5)->setText(QString("%1").arg(Min));
+		}
+
+		//parentItem->child(0, 2)->setText(QString("%1").arg(Mean));
+		//parentItem->child(0, 3)->setText(QString("%1").arg(std));
+		//parentItem->child(0, 4)->setText(QString("%1").arg(Max));
+		//parentItem->child(0, 5)->setText(QString("%1").arg(Min));
 		//infoRow << new QStandardItem(QString("%1").arg(Mean));
 		//infoRow << new QStandardItem(QString("%1").arg(std));
 		//infoRow << new QStandardItem(QString("%1").arg(Max));
@@ -139,22 +152,21 @@ public:
 		glyContour->GetActors(actors);
 		vtkActor* actor = vtkActor::SafeDownCast(actors->GetItemAsObject(0));
 		//actor->SetVisibility(0);
-		cout << "number of actors:" << actors->GetNumberOfItems() << endl;
-
-		*testvalue = 100;
+		cout << "number of actors:" << actors->GetNumberOfItems() << endl;		
 
 	}
 
 	vtkTracerCallback() : scalingValue(0), shiftValue(0){};
+	//QList<QStandardItem*>::iterator rowHead;
 	QStandardItem* parentItem;
-	int* testvalue;
+	QString roiName;
 	//QList<QStandardItem *>* infoModel;
 
-	void initialize(float _scalingValue, float _shiftValue, int& test, QStandardItem* _parentItem)
+	void initialize(float _scalingValue, float _shiftValue, const QString _text, QStandardItem* _parentItem)
 	{ 
 		scalingValue = _scalingValue; shiftValue = _shiftValue; parentItem = _parentItem;
-		testvalue = &test;
-		cout << parentItem << endl;
+		roiName = _text;
+		//cout << *rowHead << endl;
 	};
 protected:
 	float scalingValue;
@@ -168,27 +180,28 @@ protected:
 //--------
 vtkRoiInteractor::vtkRoiInteractor()
 {
-//	this->QtextBrowser = NULL;
-	this->contourWidgetCollection = vtkCollection::New();
+    //this->QtextBrowser = NULL;
+	//this->contourWidgetCollection = vtkCollection::New();
 	//this->imageActor = vtkImageActor::New();
 }
 
 vtkRoiInteractor::~vtkRoiInteractor()
 {
-	this->contourWidgetCollection->Delete();
+	//this->contourWidgetCollection->Delete();
 	//this->QtextBrowser->destroyed();
 	//this->imageActor->Delete();
 }
 
 //----------------------------------------------------------------------------
-void vtkRoiInteractor::initialize(vtkImageActor* imageActor, vtkSmartPointer<vtkRenderWindowInteractor> iInt, QStandardItem * parentItem, float* scalingPara, int& test)
+void vtkRoiInteractor::initialize(vtkSmartPointer<vtkRenderWindowInteractor> iInt, QStandardItem * parentItem, float* scalingPara, const QString text, vtkCollection* ThisRoiCllct)
 {
 	//default value---none scaling
-	cout << "Initializing new vtk ROI" << endl;;
+	imageName = text;
+	qDebug() << "Initializing new vtk ROI at " << imageName << endl;;
 	vtkSmartPointer< vtkTracerCallback> traceCallback = vtkTracerCallback::New();
-	traceCallback->initialize(scalingPara[0], scalingPara[1], test, parentItem);
+	traceCallback->initialize(scalingPara[0], scalingPara[1], text, parentItem);
 
-	cout << parentItem << endl;
+	//cout << *RowHead << endl;
 	//traceCallback->scalingValue = this->scalingPara[0];
 	//traceCallback->shiftValue = this->scalingPara[1];
 
@@ -201,6 +214,8 @@ void vtkRoiInteractor::initialize(vtkImageActor* imageActor, vtkSmartPointer<vtk
 	vtkOrientedGlyphContourRepresentation* rep = vtkOrientedGlyphContourRepresentation::New();
 	rep->GetLinesProperty()->SetColor(1, 1, 0);
 	rep->GetLinesProperty()->SetLineWidth(1.5);
+
+	vtkImageActor* imageActor = static_cast<myVtkInteractorStyleImage*>(iInt->GetInteractorStyle())->GetImageActor();
 
 	vtkImageActorPointPlacer* placer = vtkImageActorPointPlacer::New();
 	placer->SetImageActor(imageActor);
@@ -217,14 +232,14 @@ void vtkRoiInteractor::initialize(vtkImageActor* imageActor, vtkSmartPointer<vtk
 	newContourWidget->On();
 	newContourWidget->AddObserver(vtkCommand::EndInteractionEvent, traceCallback);
 
+	iInt->AddObserver(vtkCommand::EndInteractionEvent,this, &vtkRoiInteractor::OnRightButtonDown);
 	//std::cout << "in initialize: Area is " << traceCallback->RoiInfo[0] << endl;
-	//roiInfoRow += traceCallback->infoModel;
-	//
-	
+	//roiInfoRow += traceCallback->infoModel;		
 	/*QStandardItem* areaItem = roiInfoRow.at(0);
 	cout << "in initialize: Area is " << areaItem->text().toStdString() << endl;
 	cout << "contour Widget" << endl;*/
 
+	this->contourWidgetCollection = ThisRoiCllct;
 	this->contourWidgetCollection->AddItem(newContourWidget);
 }
 
@@ -236,13 +251,15 @@ void vtkRoiInteractor::RemoveWidgetIterm(vtkContourWidget* contour)
 	//self->Initialize(NULL);
 
 	this->contourWidgetCollection->RemoveItem(contour);
+	contour->Delete();
+	qDebug() << "a contourWidget in " << imageName << "is deleted" << endl;
 }
 
 void vtkRoiInteractor::OnRightButtonDown()
 {
 	int* clickPos = interactor->GetEventPosition();
 	int numberOfWidgets = this->contourWidgetCollection->GetNumberOfItems();
-	//cout << "number of nodes:" << numberOfWidgets << endl;
+	qDebug() << numberOfWidgets << " ROIs are in :" << imageName << endl;
 
 	if (numberOfWidgets > 0)
 	{
@@ -253,7 +270,7 @@ void vtkRoiInteractor::OnRightButtonDown()
 
 			if (rep->SetActiveNodeToDisplayPosition(clickPos)) //rep->SetActiveNodeToDisplayPosition(clickPos)
 			{
-				this->RemoveWidgetIterm(contour);
+				this->RemoveWidgetIterm(contour);				
 				return;
 			}
 			//}

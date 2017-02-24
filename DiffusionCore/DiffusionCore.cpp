@@ -39,6 +39,10 @@
 #include <vtkQtTableView.h>
 #include <QVTKWidget.h>
 #include <QVTKInteractor.h>
+#include <vtkImageShiftScale.h>
+#include <vtkImageAppend.h>
+#include <vtkDICOMMRGenerator.h>
+#include <vtkDICOMWriter.h>
 
 // ITK
 #include <itkCastImageFilter.h>
@@ -54,6 +58,7 @@
 #include <QDialog>
 #include <QMouseEvent>
 #include <QGroupBox>
+#include <QProgressDialog>
 //#include <qbuttongroup.h>
 
 //Customized Header
@@ -77,6 +82,7 @@
 //Notify Wenxing
 #define DEFAULTTHRESH 10
 #define DEFAULTB 2000
+#define BUTTON_GROUP_ID 300
 
 DiffusionCore::DiffusionCore(QWidget *parent)
 	:QWidget(parent)
@@ -86,6 +92,8 @@ DiffusionCore::DiffusionCore(QWidget *parent)
 	this->ButtonTable = new QButtonGroup;
 	this->m_MaskVectorImage = DiffusionCalculatorVectorImageType::New();
 	m_MaskThreshold = DEFAULTTHRESH/5;
+	m_ComputedBValue = DEFAULTB;
+	m_CurrentSlice = -1;
 
 	CreateQtPartControl(this);
 }
@@ -126,12 +134,12 @@ void DiffusionCore::CreateQtPartControl(QWidget *parent)
 		
 
 		ButtonTable->setExclusive(false); //non-exclusive button group. 
-		ButtonTable->addButton(m_Controls->adcToggle, 301);
-		ButtonTable->addButton(m_Controls->eadcToggle, 302);
-		ButtonTable->addButton(m_Controls->cdwiToggle, 303);
-		ButtonTable->addButton(m_Controls->faToggle, 304);
-		ButtonTable->addButton(m_Controls->colorFAToggle, 305);
-		ButtonTable->addButton(m_Controls->ivimToggle, 306);
+		ButtonTable->addButton(m_Controls->adcToggle, BUTTON_GROUP_ID + 1);
+		ButtonTable->addButton(m_Controls->eadcToggle, BUTTON_GROUP_ID + 2);
+		ButtonTable->addButton(m_Controls->cdwiToggle, BUTTON_GROUP_ID + 3);
+		ButtonTable->addButton(m_Controls->faToggle, BUTTON_GROUP_ID + 4);
+		ButtonTable->addButton(m_Controls->colorFAToggle, BUTTON_GROUP_ID + 5);
+		ButtonTable->addButton(m_Controls->ivimToggle, BUTTON_GROUP_ID + 6);
 
 		//Connect Toggles
 		connect(m_Controls->adcToggle, SIGNAL(toggled(bool)), this, SLOT(onCalcADC(bool)));
@@ -140,7 +148,7 @@ void DiffusionCore::CreateQtPartControl(QWidget *parent)
 		connect(m_Controls->faToggle, SIGNAL(toggled(bool)), this, SLOT(onCalcFA(bool)));
 		connect(m_Controls->colorFAToggle, SIGNAL(toggled(bool)), this, SLOT(onCalcColorFA(bool)));
 		connect(m_Controls->ivimToggle, SIGNAL(toggled(bool)), this, SLOT(onCalcIVIM(bool)));
-
+		//connect(m_Controls->calc3D, SIGNAL(clicked()), this, SLOT(onCalc3D()));
 
 		//Connect Sliders
 		connect(m_Controls->ThreshSlider, SIGNAL(valueChanged(double)), this, SLOT(onThreshSlide(double)));
@@ -162,21 +170,33 @@ void DiffusionCore::onSetSourceImage(DicomHelper* dicomData, int inputSlice)
 	//Enable/Disable Buttons.
 	//
 
-	//this->m_Controls->Thresh->setVisible(false);
+	qDebug() << "recieved slice = " << inputSlice << "m_CurrentSlice = " << m_CurrentSlice;
 
 	if (m_DicomHelper->tensorComputationPossible)
 	{
 		std::cout << "[SetSourceImage] DTI OK ";
 		this->m_Controls->DTITool->setEnabled(true);
+		if (m_DicomHelper->numberOfBValue < 2)
+		{
+			this->m_Controls->ADCTool->setEnabled(false);
+		}
 	}else{
 		//this->ui->dtiNameTag->setText("Data does not contain multiple direction, view Only");
 		if (m_DicomHelper->numberOfBValue >= 2)
 		{
 			std::cout << "[SetSourceImage] DTI NOT OK, DWI OK" << std::endl;
 			this->m_Controls->ADCTool->setEnabled(true);
+
+			if (!m_DicomHelper->tensorComputationPossible)
+			{
+				this->m_Controls->DTITool->setEnabled(false);
+			}
 			if (m_DicomHelper->numberOfBValue >= 4)
 			{
 				this->m_Controls->ivimToggle->setEnabled(true);
+			}
+			else{
+				this->m_Controls->ivimToggle->setEnabled(false);
 			}
 		}
 	}
@@ -184,29 +204,196 @@ void DiffusionCore::onSetSourceImage(DicomHelper* dicomData, int inputSlice)
 	onRecalcAll(inputSlice); //recalculated all calculated images 
 }
 
-//void DiffusionCore::onTestButton(bool _istoggled)
-//{
-//	std::cout << "test button is clicked" << std::endl;
-//
-//	vtkSmartPointer <vtkImageData> calculatedAdc;
-//	const QString imageName(m_Controls->pushButton->text());
-//
-//	float scale(0.0), slope(0.0);
-//	if (_istoggled)
-//	{
-//		calculatedAdc = vtkSmartPointer <vtkImageData>::New();
-//		
-//		this->AdcCalculator(calculatedAdc, scale, slope);
-//	}
-//	else
-//	{
-//		calculatedAdc = NULL;		
-//	}
-//
-//	std::cout << "test button fired" << std::endl;
-//
-//	emit SignalTestButtonFired(_istoggled, calculatedAdc, imageName, scale, slope);
-//}
+void DiffusionCore::onSelectImage(const QString widgetName)
+{
+	QStringList diffImgNm;
+	for (int buttonIndex = BUTTON_GROUP_ID + 1; buttonIndex < BUTTON_GROUP_ID + 7; buttonIndex++)
+	{
+		diffImgNm << ButtonTable->button(buttonIndex)->text();
+	}
+
+	int buttonID(-50);
+	
+	if (diffImgNm.indexOf(widgetName) > 0)
+	{
+		buttonID = diffImgNm.indexOf(widgetName) + BUTTON_GROUP_ID + 1;
+	}
+	
+	if (buttonID > 0)
+	{
+		if (Diff_ActiveWdw.contains(buttonID))
+		{
+			Diff_ActiveWdw.removeOne(buttonID);
+		}
+		else{
+			Diff_ActiveWdw << buttonID;
+		}
+	}
+	else
+	{
+		qDebug() << widgetName << "is not calculated by diffusion module";
+	}
+
+	QString debugOut; 
+	debugOut += QString("Active Windows related to Diffusion are: ");
+	for (int i = 0; i < Diff_ActiveWdw.size(); ++i)
+	{
+		debugOut += QString::number(Diff_ActiveWdw.at(i));
+		debugOut += QString("_");
+	}
+	qDebug() << debugOut;
+
+	if (Diff_ActiveWdw.size() > 0)
+	{
+		//m_Controls->Tool3D->setEnabled(true);
+		//->calc3D->setEnabled(true);
+		//m_Controls->calc3D->setEnabled(true);
+	}
+	else{
+		//this->m_Controls->Tool3D->setDisabled(true);
+	}
+}
+
+void DiffusionCore::onCalc3D(QString directory)
+{
+	vtkSmartPointer <vtkImageData> imageData3D;
+
+	if (Diff_ActiveWdw.size() < 1)
+	{
+		qDebug() << "no windows are selected";
+		return;
+	}
+	qDebug() << Diff_ActiveWdw.size() << "windows are activated";;
+	
+	//QProgressDialog progressDialog(this);
+	//progressDialog.show();
+	for (int i = 0; i < Diff_ActiveWdw.size(); ++i)
+	{
+		int buttonID = Diff_ActiveWdw.at(i);
+		qDebug() << "Image buttonID = " << buttonID << endl;
+
+		
+		//progressDialog.setCancelButtonText(tr("&Cancel"));
+		//progressDialog.setRange(0, m_DicomHelper->imageDimensions[2]);
+		//progressDialog.setWindowTitle(QString("Calculate 3D Image of ") + ButtonTable->button(buttonID)->text());
+
+		//Append all slices into imageData
+		vtkSmartPointer<vtkImageAppend> appendImageData = vtkSmartPointer<vtkImageAppend>::New();
+		//loop over all slices
+		for (int sliceIndex = 0; sliceIndex < m_DicomHelper->imageDimensions[2]; sliceIndex++)
+		{
+			vtkSmartPointer<vtkImageData> sliceImage = vtkSmartPointer<vtkImageData>::New();
+			//DiffusionCalculatorVectorImageType::Pointer maskImage = DiffusionCalculatorVectorImageType::New();
+			float slope = 1, intercept = 0;
+			//std::cout << "---------------------- export image:: mask vectorimage 00----------" << std::endl;
+			this->UpdateMaskVectorImage(m_DicomHelper, sliceIndex, this->m_MaskVectorImage);
+
+			//progressDialog.setValue(sliceIndex);
+			//progressDialog.setLabelText(tr("Calculating slice number %1 of %n...", 0, m_DicomHelper->imageDimensions[2]).arg(sliceIndex));
+
+			//if (progressDialog.wasCanceled())
+			//	break;
+
+
+			//std::cout << "---------------------- export image:: mask vectorimage 01----------" << std::endl;
+			switch (buttonID - BUTTON_GROUP_ID)
+			{
+			case 1:
+				this->AdcCalculator(sliceImage, slope, intercept);
+				break;
+			case 2:
+				this->EAdcCalculator(sliceImage, slope, intercept);
+				break;
+			case 3:
+				this->CDWICalculator(sliceImage, slope, intercept);
+				break;
+			case 4:
+				this->FaCalculator(sliceImage, slope, intercept);
+				break;
+			default:
+				std::cout << "Jiangli To do: Save other images later, otherwise null image data will be writen" << std::endl;
+				break;
+			}
+
+			//scale sliceImage to real value
+			vtkSmartPointer <vtkImageShiftScale> scaleSliceImage = vtkSmartPointer <vtkImageShiftScale>::New();
+			scaleSliceImage->SetInputData(sliceImage);
+			scaleSliceImage->SetShift(intercept / slope);
+			scaleSliceImage->SetScale(slope);//exception: what if range 1 = range 0 ??
+			scaleSliceImage->ClampOverflowOn();
+			scaleSliceImage->SetOutputScalarTypeToFloat();//Change to double type in future?
+			scaleSliceImage->Update();
+			appendImageData->AddInputConnection(scaleSliceImage->GetOutputPort());
+		}
+
+		//composeImage
+		appendImageData->SetAppendAxis(2);
+		appendImageData->Update();
+		//std::cout << "" << std::endl;
+		std::cout << "----------------------Display AppendImageData----------" << std::endl;
+		//this->DisplayDicomInfo(appendImageData->GetOutput());
+
+		//scale VolumeImage with real value to [0,4095]
+		double range[2];
+		appendImageData->GetOutput()->GetScalarRange(range);
+		double resclaeSlope = range[1] > range[0] ? 4095 / (range[1] - range[0]) : 1;
+		double rescaleIntercept = -range[0];
+		vtkSmartPointer <vtkImageShiftScale> scaleVolumeImage = vtkSmartPointer <vtkImageShiftScale>::New();
+		scaleVolumeImage->SetInputConnection(appendImageData->GetOutputPort());
+		scaleVolumeImage->SetShift(rescaleIntercept);
+		scaleVolumeImage->SetScale(resclaeSlope);
+		scaleVolumeImage->ClampOverflowOn();
+		scaleVolumeImage->SetOutputScalarTypeToUnsignedShort();//Change to double type in future?
+		scaleVolumeImage->Update();
+
+		std::cout << "----------------------volume data Pushed-------------" << std::endl;
+		qDebug() << "image name is"<<ButtonTable->button(buttonID)->text();
+
+		QString seriesName = QString("Derived") + ButtonTable->button(buttonID)->text();
+		vtkSmartPointer <vtkDICOMMRGenerator> generator = vtkSmartPointer <vtkDICOMMRGenerator>::New();
+		vtkSmartPointer <vtkDICOMMetaData> metaData = vtkSmartPointer<vtkDICOMMetaData>::New();
+		metaData = m_DicomHelper->DicomReader->GetMetaData();
+		metaData->SetAttributeValue(DC::SeriesDescription, seriesName.toStdString());
+		metaData->SetAttributeValue(DC::ProtocolName, seriesName.toStdString());
+
+		QString imageNm;
+		if (buttonID == BUTTON_GROUP_ID + 3) //For CDWI data, add b value string to the file name
+		{
+			imageNm = ButtonTable->button(buttonID)->text() + QString("-B") + QString::number(m_ComputedBValue);
+		}
+		else{
+			imageNm = ButtonTable->button(buttonID)->text();
+		}
+
+		std::string fileName = "%s\\IM-" + imageNm.toStdString() + "-000%d.dcm";
+		
+		std::cout << "Image export as " << fileName.c_str() << std::endl;
+		vtkSmartPointer <vtkDICOMWriter> writer = vtkSmartPointer <vtkDICOMWriter>::New();
+		writer->SetInputConnection(scaleVolumeImage->GetOutputPort());
+		writer->SetMetaData(metaData);
+		writer->SetGenerator(generator);
+		//writer->SetFileSliceOrder(2);
+		writer->SetRescaleIntercept(rescaleIntercept);
+		writer->SetRescaleSlope(resclaeSlope);
+		writer->SetFilePattern(fileName.c_str());
+		
+		if (directory.isEmpty())
+		{					
+			writer->SetFilePrefix("C:\\DicomData\\DerivedData\\Default");
+			std::cout << "Jiangli To do: Save other images later, otherwise null image data will be writen" << std::endl;			
+		}
+		else{			
+			QString folderName = directory;
+			writer->SetFilePrefix(folderName.toStdString().c_str());
+		}
+		qDebug() << "Image export to " << (directory + QString("\\"));
+		writer->Write();
+	}
+	////restore m_MaskVectorImage to before imageExport State
+	//std::cout << "m_CurrentSlice - =====" << m_CurrentSlice << std::endl;
+	this->UpdateMaskVectorImage(m_DicomHelper, m_CurrentSlice, this->m_MaskVectorImage);
+	//qDebug() << image3Dstorage.value(0)->GetDimensions()[2];
+}
 
 void DiffusionCore::onCalcADC(bool _istoggled) //SLOT of adcToggle
 {
@@ -307,7 +494,7 @@ void DiffusionCore::AdcCalculator(vtkSmartPointer <vtkImageData> imageData, floa
 
 	imageData->DeepCopy(convItkToVtk->GetOutput());
 
-	cout << "ADC calculator: " << imageData->GetScalarComponentAsFloat(60, 60, 0, 0) << endl;
+	//cout << "ADC calculator: " << imageData->GetScalarComponentAsFloat(60, 60, 0, 0) << endl;
 }
 
 void DiffusionCore::onCalcEADC(bool _istoggled) //SLOT of eadcToggle
@@ -832,16 +1019,23 @@ void DiffusionCore::IVIMCalculator(vtkSmartPointer <vtkImageData> imageData)
 
 void DiffusionCore::onRecalcAll(int inputSlice)
 {		
+	qDebug() << "recalc slice = " << inputSlice << "m_CurrentSlice = " << m_CurrentSlice;
+
 	if (inputSlice >= 0)
 	{
 		//std::cout << "[onRecalcAll] updating slice" << endl;
 		m_CurrentSlice = inputSlice;
-		UpdateMaskVectorImage(m_DicomHelper, this->m_MaskVectorImage);
+		vtkSmartPointer<vtkImageData> SourceImageSlice = vtkSmartPointer<vtkImageData>::New();
+		ComputeCurrentSourceImage(inputSlice, SourceImageSlice);
+
+		UpdateMaskVectorImage(m_DicomHelper, inputSlice, this->m_MaskVectorImage);
+		
+		emit SignalTestButtonFired(true, SourceImageSlice, QString("Source"), 1, 0);
 		//m_vectorImage.insert(inputSlice, m_MaskVectorImage);
 		if (!this->m_MaskVectorImage) return;
 
 		//Retrigger All Checked Buttons. 
-		for (int i = 301; i < 307; i++)
+		for (int i = BUTTON_GROUP_ID + 1; i < BUTTON_GROUP_ID + 7; i++)
 		{
 			if (ButtonTable->button(i)->isChecked())
 			{
@@ -858,13 +1052,32 @@ void DiffusionCore::onRecalcAll(int inputSlice)
 	}
 }
 
-void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalculatorVectorImageType::Pointer _MaskVectorImage)
+void DiffusionCore::ComputeCurrentSourceImage(int currentSlice, vtkSmartPointer <vtkImageData> SourceImageData)
+{
+	if (!m_DicomHelper->DicomReader->GetOutput()) return;
+
+	vtkSmartPointer <vtkExtractVOI> ExtractVOI = vtkSmartPointer <vtkExtractVOI>::New();
+	ExtractVOI->SetInputData(m_DicomHelper->DicomReader->GetOutput());
+	ExtractVOI->SetVOI(0, this->m_DicomHelper->imageDimensions[0] - 1, 0, this->m_DicomHelper->imageDimensions[1] - 1, currentSlice, currentSlice);
+	ExtractVOI->Update();
+
+	//Maybe we can make use of the extent info here rather than set it back to 0 via changeInformationFiter
+	vtkSmartPointer <vtkImageChangeInformation> changeInfo = vtkSmartPointer <vtkImageChangeInformation>::New();
+	changeInfo->SetInputData(ExtractVOI->GetOutput());
+	changeInfo->SetOutputOrigin(0, 0, 0);
+	changeInfo->SetExtentTranslation(0, 0, -currentSlice);
+	changeInfo->Update();
+
+	SourceImageData->DeepCopy(changeInfo->GetOutput());
+}
+
+void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, int currentSlice, DiffusionCalculatorVectorImageType::Pointer _MaskVectorImage)
 {
 
 	// currently implementation, for GE data; need a decent way!!!
 	//typedef T SourceImagePixelType;
 	//typedef itk::Image < SourceImagePixelType, 3> SourceImageType;
-	cout << "[UpdateMaskVectorImage] Slicing Source Image at " <<m_CurrentSlice<< endl;
+	cout << "[UpdateMaskVectorImage] Slicing Source Image at " << currentSlice << endl;
 
 	typedef itk::VectorContainer< SourceImagePixelType, DiffusionCalculatorImageType::Pointer > ImageContainerType;
 	typedef itk::VTKImageToImageFilter <SourceImageType>	VtkToItkConverterType;
@@ -879,13 +1092,13 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalcu
 	//}
 	//else
 	//{
-	imageContainer->Reserve(this->m_DicomHelper->numberOfComponents);
+	imageContainer->Reserve(dicomData->numberOfComponents);
 	//}
 	//std::cout << "m_DicomHelper numof components" << this->m_DicomHelper->numberOfComponents << std::endl;
 
 	vtkSmartPointer <vtkExtractVOI> ExtractVOI = vtkSmartPointer <vtkExtractVOI>::New();
 	ExtractVOI->SetInputData(dicomData->DicomReader->GetOutput());
-	ExtractVOI->SetVOI(0, this->m_DicomHelper->imageDimensions[0] - 1, 0, this->m_DicomHelper->imageDimensions[1] - 1, m_CurrentSlice, m_CurrentSlice);
+	ExtractVOI->SetVOI(0, dicomData->imageDimensions[0] - 1, 0, dicomData->imageDimensions[1] - 1, currentSlice, currentSlice);
 	ExtractVOI->Update();
 	//std::cout << "---------------------------- VOI is correct ? ---------------------" << std::endl;
 	//std::cout << "Current Slice is " << m_CurrentSlice << std::endl;
@@ -899,7 +1112,7 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalcu
 	vtkSmartPointer <vtkImageChangeInformation> changeInfo = vtkSmartPointer <vtkImageChangeInformation>::New();
 	changeInfo->SetInputData(ExtractVOI->GetOutput());
 	changeInfo->SetOutputOrigin(0, 0, 0);
-	changeInfo->SetExtentTranslation(0, 0, -m_CurrentSlice);
+	changeInfo->SetExtentTranslation(0, 0, -currentSlice);
 	changeInfo->Update();
 
 	//std::cout << "---------------------------- translateExtent is correct ? ---------------------" << std::endl;
@@ -930,8 +1143,8 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalcu
 		//Take some time to finish the computation
 		ShiftScaleType::Pointer shiftScale = ShiftScaleType::New();
 		shiftScale->SetInput(castFilter->GetOutput());
-		shiftScale->SetShift(-m_DicomHelper->scaleIntercept);
-		shiftScale->SetScale(1.0 / m_DicomHelper->scaleSlope);
+		shiftScale->SetShift(-dicomData->scaleIntercept);
+		shiftScale->SetScale(1.0 / dicomData->scaleSlope);
 		shiftScale->Update();
 
 		//removing the isotropic direction for DTI has been implemented in the sorting source image.
@@ -986,6 +1199,4 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, DiffusionCalcu
 		++maskFilterIterator;
 		++maskVectorImageIterator;
 	}
-	
 }
-

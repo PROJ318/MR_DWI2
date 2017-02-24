@@ -17,7 +17,12 @@
 #include <qfile.h>
 #include <qdebug.h>
 #include <qstring.h>
+#include <QPainter>
+#include "qevent.h"
+#include <QtTest/QtTest>
 
+// CTK
+#include <ctkFileDialog.h>
 
 //VTK include
 #include <vtkDataObjectToTable.h>
@@ -57,9 +62,9 @@
 #include <vtkQtTableView.h>
 #include <QVTKWidget.h>
 #include <QVTKInteractor.h>
+#include <vtkImageProperty.h>
+#include <vtkCollection.h>
 
-#define MAXTHRESHHOLD 3
-#define MAXBVALUE 2000
 
 bool cmp(std::pair<float, int> p1, std::pair<float, int> p2)
 {
@@ -69,6 +74,10 @@ bool cmp(std::pair<float, int> p1, std::pair<float, int> p2)
 }
 vtkImageActor* getImageActorFromRender(vtkRenderer* inputRenderer)
 {
+	if (!inputRenderer)
+	{
+		qDebug() << "inputRenderer is NULL" << endl;
+	}
 	vtkActorCollection* actorCollection = inputRenderer->GetActors();
 	qDebug() << actorCollection->GetNumberOfItems() << "actors are found" << endl;
 	actorCollection->InitTraversal();
@@ -95,62 +104,56 @@ vtkImageActor* getImageActorFromRender(vtkRenderer* inputRenderer)
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent)
 {
-	//Initialize();
-	//CreateQtPartControl(this);
-	testvalue = 10;
 	this->m_DicomHelper = NULL;
 	this->sourceImage = vtkSmartPointer<vtkImageData>::New();//VTK image pointer
 
 	m_SourceImageCurrentSlice = 0;
-	//m_QuantitativeImageCurrentSlice = 0;
-	this->m_MaskThreshold = MAXTHRESHHOLD;
-	this->m_ComputedBValue = MAXBVALUE;
+	m_SourceImageMaxSlice = 0;
+	m_SourceImageMinSlice = 0;
 
 	DicomUI = new DicomModule(this);
 	DicomUI->hide();
 
 	//Set Window Style
-
-	//QFile file(":/dark.qss");
+	//QFile file(":/qdarkstyle/style.qss");
 	//file.open(QFile::ReadOnly);
 	//QString styleSheet = QLatin1String(file.readAll());
 	//setStyleSheet(styleSheet);
+
 	this->ui = new Ui::MainWindow;
 	this->ui->setupUi(this);
 	showMaximized();
 
-	displayLayout = new DisplayPort;
-	this->ui->ViewArea->setLayout(displayLayout);
-
 	roiInfoModel = new QStandardItemModel;
 	this->ui->statisBrowser->setModel(roiInfoModel);
 
-	focusedWdwName = "Source";
-	//ui->toolLine->setPalette(framePalette);
-	//ui->toolLine->setAutoFillBackground(true); // set dockwidget as trasparent floating
-	//ui->dockWidget->setWindowFlags(Qt::FramelessWindowHint);
-	//ui->dockWidget->setFloating(true);
-	//QApplication::setStyle(QStyleFactory::create("fusion"));
-	//std::cout << "Style Set OK" << std::endl;
-
 	connect(ui->FileButton, SIGNAL(clicked()), this, SLOT(onStartdicom()));
 	connect(DicomUI, SIGNAL(SignalDicomRead(QStringList)), this, SLOT(OnImageFilesLoaded(QStringList)));
+
+	connect(ui->SaveButton, SIGNAL(clicked()), this, SLOT(onExportImage()));
+
+	//Diffusion Module Connections
 	connect(ui->diffusionModule, SIGNAL(SignalTestButtonFired(bool , vtkSmartPointer <vtkImageData>, QString,  float,  float)), 
 		this, SLOT(onProcButtonClicked(bool, vtkSmartPointer <vtkImageData>, const QString, const float, const float)));
 	connect(this, SIGNAL(SignalSetSourceImage(DicomHelper*,int)), ui->diffusionModule, SLOT(onSetSourceImage(DicomHelper*,int)));
 	connect(this, SIGNAL(SignalRecalcAll(int)), ui->diffusionModule, SLOT(onRecalcAll(int)));
+
+	//Segment Module Connections
+	connect(ui->pointer1, SIGNAL(pressed()), this, SLOT(addROI()));
+	connect(ui->pointer2, SIGNAL(toggled(bool)), this, SLOT(onCursorPickValue(bool)));
+	connect(ui->statisBrowser, SIGNAL(clicked(QModelIndex )), this, SLOT(onClickTreeView(QModelIndex )));
+
+	//View Frame Connections
+	connect(ui->ViewFrame, SIGNAL(signalWheel(const QString, int, Qt::Orientation)), this, SLOT(onWheelWdw(const QString, int, Qt::Orientation)));
+	connect(ui->ViewFrame, SIGNAL(signalFocusIn(const QString)), this, SLOT(onFocusWdw(const QString)));
+	connect(ui->ViewFrame, SIGNAL(signalFocusIn(const QString)), ui->diffusionModule, SLOT(onSelectImage(const QString)));
+	connect(ui->ViewFrame, SIGNAL(signalMouseEvent(QMouseEvent *, const QString)), this, SLOT(onBroadcastEvent(QMouseEvent *, const QString)));
+	connect(ui->ViewFrame, SIGNAL(signalKeyEvent(QKeyEvent *)), this, SLOT(onKeyEvent(QKeyEvent *)));
+	connect(ui->ViewFrame, SIGNAL(signalResizeEvent(const QString, const QSize, const QSize)), this, SLOT(onWdwResizeEvent(const QString, const QSize, const QSize)));
+
 	//connect(ui->diffusionModule, SIGNAL(SignalDicomLoaded(bool)), this, SLOT(onDicomLoaded(bool)));
 	//connect(DicomUI, SIGNAL(SignalDicomToDataManager(QStringList)), ui->diffusionModule, SLOT(OnImageFilesLoaded(QStringList)));
 	//connect(ui->DicomUI, SIGNAL(SignalStartDicomImport(QStringList)), ui->internalDataWidget, SLOT(OnStartDicomImport(QStringList)));
-
-	////Connect Segment buttons
-	////connect(m_Controls->pointer1, SIGNAL(toggled(bool)), this, SLOT(onRoiPointer(bool)));
-	connect(ui->pointer1, SIGNAL(pressed()), this, SLOT(addROI()));
-	connect(ui->pointer2, SIGNAL(toggled(bool)), this, SLOT(onCursorPickValue(bool)));
-
-	connect(ui->statisBrowser, SIGNAL(clicked(QModelIndex )), this, SLOT(onClickTreeView(QModelIndex )));
-
-	//connect(displayLayout, SIGNAL(signalMouseAt(const QString)), this, SLOT(onFocusWdw(const QString)));
 }
 
 void MainWindow::onStartdicom()
@@ -169,7 +172,7 @@ void MainWindow::onProcButtonClicked(bool addOrRemove, vtkSmartPointer <vtkImage
 {	
 	if (addOrRemove) //true:add, false:remove
 	{
-		QWidget *wdwItem(this->displayLayout->getWindow(imageName));
+		QWidget *wdwItem(this->ui->ViewFrame->getWindow(imageName));
 		QVTKWidget* vtkWindow;
 		if (wdwItem != NULL)
 		{
@@ -179,7 +182,7 @@ void MainWindow::onProcButtonClicked(bool addOrRemove, vtkSmartPointer <vtkImage
 		else{
 			vtkWindow = new QVTKWidget;
 			qDebug() << imageName << " window not exists, creating window";
-			this->displayLayout->insertWindow(vtkWindow, imageName);
+			this->ui->ViewFrame->insertWindow(vtkWindow, imageName);
 			//std::cout << "... window created" << std::endl;
 		}		
 
@@ -194,17 +197,30 @@ void MainWindow::onProcButtonClicked(bool addOrRemove, vtkSmartPointer <vtkImage
 	}
 	else
 	{
-		this->displayLayout->removeWindow(imageName);
+		this->ui->ViewFrame->removeWindow(imageName);
+		if (ActiveWdw.contains(imageName))
+		{
+			QWidget* focusWindow = ui->ViewFrame->getWindow(imageName);
+			focusWindow->setStyleSheet("border: none;");
+			ActiveWdw.removeOne(imageName);
+		}
 	}
+}
+
+void MainWindow::onCalc3DButtonClicked(QString imageName)
+{
+	qDebug() << imageName << "3D data received" << endl;
+	//image3Dstorage.insert(imageName, imageData3D);
 }
 
 MainWindow::~MainWindow()
 {
 	this->sourceImage->Delete();
+
 	this->sourceImage = NULL;
 
 	this->m_DicomHelper = NULL;
-
+	
     delete ui;
 }
 
@@ -231,34 +247,34 @@ void MainWindow::OnImageFilesLoaded(const QStringList& fileLists)
 		//this->UpdateMaskVectorImage();
 	}
 
-	const QString orgLabel("Source"); //TO_DO: using serie name/protocol name instead
+	//TO_DO: delete image3Dstorage, refresh viewport. 
 
-	QWidget *orgItem(this->displayLayout->getWindow(orgLabel));
+	m_SourceImageMaxSlice = this->sourceImage->GetDimensions()[2] - 1;
+	
+	const QString orgLabel("Source"); //TO_DO: using serie name/protocol name instead
+	QWidget *orgItem(this->ui->ViewFrame->getWindow(orgLabel));
 	QVTKWidget *vtkWindow;
 	if (orgItem != NULL)
 	{
 		std::cout << "Original Image existed " << std::endl;
 		vtkWindow = static_cast <QVTKWidget*>(orgItem);
-
-
-
 		m_SourceImageCurrentSlice = 0;
-		this->m_MaskThreshold = MAXTHRESHHOLD;
-		this->m_ComputedBValue = MAXBVALUE;
-
 		//m_QuantitativeImageCurrentSlice = 0;
 		//this->m_DicomHelper = nullptr;
 	}
 	else{
 		vtkWindow = new QVTKWidget;
-		this->displayLayout->insertWindow(vtkWindow, orgLabel);
+		this->ui->ViewFrame->insertWindow(vtkWindow, orgLabel);
 	}
 
 	//emit SignalDicomLoaded(true);
 	DicomUI->hide();
 	//std::cout << "srcimage viewer" << std::endl;
 	DisplayDicomInfo(this->sourceImage);
-	ImageViewer2D(this->sourceImage, vtkWindow, orgLabel.toStdString());
+
+	//vtkSmartPointer<vtkImageData> currentSourceImage = vtkSmartPointer<vtkImageData>::New();
+	//this->ComputeCurrentSourceImage(m_SourceImageCurrentSlice, currentSourceImage);
+	//ImageViewer2D(currentSourceImage, vtkWindow, orgLabel.toStdString());
 
 	emit SignalSetSourceImage(m_DicomHelper, m_SourceImageCurrentSlice);
 }
@@ -410,7 +426,7 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	sliceTextProp->SetJustificationToLeft();
 
 	vtkSmartPointer<vtkTextMapper> sliceTextMapper = vtkSmartPointer<vtkTextMapper>::New();
-	std::string msg = imageLabel.compare("Source") == 0 ? StatusMessage::Format(imageViewer->GetSliceMin(), imageViewer->GetSliceMax()) : imageLabel;
+	std::string msg = imageLabel.compare("Source") == 0 ? StatusMessage::Format(m_SourceImageCurrentSlice, m_SourceImageMaxSlice) : imageLabel;
 	sliceTextMapper->SetInput(msg.c_str());
 	sliceTextMapper->SetTextProperty(sliceTextProp);
 
@@ -435,8 +451,8 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	vtkSmartPointer<myVtkInteractorStyleImage> myInteractorStyle = vtkSmartPointer<myVtkInteractorStyleImage>::New();
 
 	myInteractorStyle->SetImageViewer(imageViewer);
-	myInteractorStyle->SetStatusMapper(sliceTextMapper);
-	myInteractorStyle->GetCurrentSliceNumber(m_SourceImageCurrentSlice);
+	//myInteractorStyle->SetStatusMapper(sliceTextMapper);
+	//myInteractorStyle->GetCurrentSliceNumber(m_SourceImageCurrentSlice);
 
 	float scalingPara[2];
 	scalingPara[0] = 1;
@@ -447,8 +463,8 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	//myInteractorStyle->GetRoiInteraction()->initialize(imageViewer->GetImageActor(), ui->statisBrowser, renderWindowInteractor, scalingPara);
 	
 	renderWindowInteractor->SetInteractorStyle(myInteractorStyle);
-	renderWindowInteractor->AddObserver(vtkCommand::MouseWheelForwardEvent, this, &MainWindow::ShareWindowEvent);
-	renderWindowInteractor->AddObserver(vtkCommand::MouseWheelBackwardEvent, this, &MainWindow::ShareWindowEvent);
+	//renderWindowInteractor->AddObserver(vtkCommand::MouseWheelForwardEvent, this, &MainWindow::ShareWindowEvent);
+	//renderWindowInteractor->AddObserver(vtkCommand::MouseWheelBackwardEvent, this, &MainWindow::ShareWindowEvent);
 	//imageViewer->GetRenderWindow()->SetSize(qvtkWidget->width(),qvtkWidget->height());
 	//imageViewer->GetRenderer()->SetBackground(0.2, 0.3, 0.4);
 	qvtkWidget->SetRenderWindow(imageViewer->GetRenderWindow());
@@ -463,21 +479,56 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	//imageViewer->SetupInteractor(renderWindowInteractor);
 	qvtkWidget->show();
 
-	imageViewer->GetRenderer()->ResetCamera(); //Reset camera and then render is better
+	imageViewer->GetRenderer()->ResetCamera();//Reset camera and then render is better
 	vtkSmartPointer<vtkCamera> camera = imageViewer->GetRenderer()->GetActiveCamera();
-	this->SetImageFillWindow(camera, imageData, qvtkWidget->width(), qvtkWidget->height());
-	imageViewer->GetRenderer()->SetActiveCamera(camera);
-	//imageViewer->GetRenderer()->SetBackground(0.2, 0.3, 0.4);
+	double *bounds = imageViewer->GetRenderer()->ComputeVisiblePropBounds();
+	int *size = qvtkWidget->GetRenderWindow()->GetSize();
+	this->ImageAutoFillWindow(camera, bounds, size);
 	qvtkWidget->GetRenderWindow()->Render();
 	renderWindowInteractor->Initialize();
 	//qvtkWidget->show() changes window size!!!!
-	//std::cout << "QVTKWIDEGT SIZE after show= " << qvtkWidget->width() << "-" << qvtkWidget->height() << std::endl;
+	//std::cout << "QVTKWIDEGT SIZE after show= " << qvtkWidget->geometry() << "-" << qvtkWidget->height() << std::endl;
 }
 
 void MainWindow::ShareWindowEvent()
 {
 	std::cout << "[ShareWindowEvent] Sending recalculate signal" << std::endl;
+	
+	//vtkSmartPointer<vtkImageData> currentSourceImage = vtkSmartPointer<vtkImageData>::New();
+	//this->ComputeCurrentSourceImage(m_SourceImageCurrentSlice, currentSourceImage);
+	//QWidget *wdwItem(this->ui->ViewFrame->getWindow(QString("Source")));
+	//ImageViewer2D(currentSourceImage, static_cast <QVTKWidget*>(wdwItem), "Source");
+
 	emit SignalRecalcAll(m_SourceImageCurrentSlice);
+
+	if (RoiCollection.contains(m_SourceImageCurrentSlice))
+	{
+		QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
+		qDebug() << "Reuse ROIs at slice " << m_SourceImageCurrentSlice << endl;		
+		QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
+		while (wdwIter.hasNext()) {
+			wdwIter.next();
+			QVTKWidget *thisWindow = static_cast <QVTKWidget*> (wdwIter.value());
+			qDebug() << "Retrieve ROI on window " << wdwIter.key();
+			float scalingPara[2];
+			scalingPara[0] = ScalingParameters.value(wdwIter.key() + '_s');
+			scalingPara[1] = ScalingParameters.value(wdwIter.key() + '_k');
+
+			vtkSmartPointer<vtkRenderWindow> renderW = static_cast<vtkRenderWindow*>(thisWindow->GetRenderWindow());
+			vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
+			//vtkImageActor* imageAct = static_cast<myVtkInteractorStyleImage*>(renInter->GetInteractorStyle())->GetImageActor();			
+			int numberOfWidgets = RoiCollection.value(m_SourceImageCurrentSlice)->GetNumberOfItems();
+			for (int i = 0; i < numberOfWidgets; i++)
+			{
+				vtkContourWidget* contour = vtkContourWidget::SafeDownCast(RoiCollection.value(m_SourceImageCurrentSlice)->GetItemAsObject(i));
+				contour->SetInteractor(renInter);
+				contour->On();
+				//vtkContourRepresentation* rep = contour->GetContourRepresentation();
+			}
+			renderW->Render();
+		}
+	}
+
 }
 
 void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, int imageIdx)
@@ -565,7 +616,9 @@ void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKW
 
 	renderer->ResetCamera();//Reset camera and then render is better
 	vtkSmartPointer<vtkCamera> camera = renderer->GetActiveCamera();
-	this->SetImageFillWindow(camera, scalarComponent->GetOutput(), qvtkWidget->width(), qvtkWidget->height());
+	double *bounds = renderer->ComputeVisiblePropBounds();
+	int *size = qvtkWidget->GetRenderWindow()->GetSize();
+	this->ImageAutoFillWindow(camera, bounds, size);
 	//imageViewer->GetRenderer()->SetActiveCamera(camera);
 	//imageViewer->GetRenderer()->SetBackground(0.2, 0.3, 0.4);
 	qvtkWidget->GetRenderWindow()->Render();
@@ -575,59 +628,58 @@ void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKW
 
 }
 
-void MainWindow::SetImageFillWindow(vtkSmartPointer<vtkCamera> camera, vtkSmartPointer <vtkImageData> imageData, double width, double height){
-
-	if (!(camera || imageData)) return;
-
-	//int dims[3];
-	double origins[3];
-	double spacing[3];
-	int extent[6];
-	//	double range[2];
-	double center[3];
-	//imageData->GetDimensions(dims);
-	imageData->GetOrigin(origins);
-	imageData->GetSpacing(spacing);
-	imageData->GetExtent(extent);
-
-
-
-	camera->ParallelProjectionOn();
-
-	double xFov = (-extent[0] + extent[1] + 1)*spacing[0];
-	double yFov = (-extent[2] + extent[3] + 1)*spacing[1];
-
-	double screenRatio = height / width;
-	double imageRatio = yFov / xFov;
-
-	double parallelScale = imageRatio > screenRatio ? yFov : screenRatio / imageRatio*yFov;
-
-	double focalDepth = camera->GetDistance();
-
-	center[0] = origins[0] + spacing[0] * .5*(extent[0] + extent[1]);
-	center[1] = origins[1] + spacing[1] * .5*(extent[2] + extent[3]);
-	center[2] = origins[2] + spacing[2] * .5*(extent[4] + extent[5]);
-
-	camera->SetParallelScale(0.5*parallelScale);
-	//std::cout << "parallel scale minHalfFov " << minHalfFov << std::endl;
-	//std::cout << "focal depth " << focalDepth << std::endl;
-	//std::cout << "view angle " << camera->GetViewAngle() << std::endl;
-	//std::cout << "Quantitative imageviewer, input width, input height =  " << width << " " << height << std::endl;
-	//std::cout << "center " << center[0] << " " << center[1] << " " << center[2] << std::endl;
-	camera->SetFocalPoint(center[0], center[1], center[2]);
-	camera->SetPosition(center[0], center[1], focalDepth);
-	//camera->SetViewAngle(80);
-}
+//void MainWindow::SetImageFillWindow(vtkSmartPointer<vtkCamera> camera, vtkSmartPointer <vtkImageData> imageData, double width, double height){
+//
+//	if (!(camera || imageData)) return;
+//
+//	//int dims[3];
+//	double origins[3];
+//	double spacing[3];
+//	int extent[6];
+//	//	double range[2];
+//	double center[3];
+//	//imageData->GetDimensions(dims);
+//	imageData->GetOrigin(origins);
+//	imageData->GetSpacing(spacing);
+//	imageData->GetExtent(extent);
+//
+//
+//
+//	camera->ParallelProjectionOn();
+//
+//	double xFov = (-extent[0] + extent[1] + 1)*spacing[0];
+//	double yFov = (-extent[2] + extent[3] + 1)*spacing[1];
+//
+//	double screenRatio = height / width;
+//	double imageRatio = yFov / xFov;
+//
+//	double parallelScale = imageRatio > screenRatio ? yFov : screenRatio / imageRatio*yFov;
+//
+//	double focalDepth = camera->GetDistance();
+//
+//	center[0] = origins[0] + spacing[0] * .5*(extent[0] + extent[1]);
+//	center[1] = origins[1] + spacing[1] * .5*(extent[2] + extent[3]);
+//	center[2] = origins[2] + spacing[2] * .5*(extent[4] + extent[5]);
+//
+//	camera->SetParallelScale(0.5*parallelScale);
+//	//std::cout << "parallel scale minHalfFov " << minHalfFov << std::endl;
+//	//std::cout << "focal depth " << focalDepth << std::endl;
+//	//std::cout << "view angle " << camera->GetViewAngle() << std::endl;
+//	//std::cout << "Quantitative imageviewer, input width, input height =  " << width << " " << height << std::endl;
+//	//std::cout << "center " << center[0] << " " << center[1] << " " << center[2] << std::endl;
+//	camera->SetFocalPoint(center[0], center[1], center[2]);
+//	camera->SetPosition(center[0], center[1], focalDepth);
+//	//camera->SetViewAngle(80);
+//}
 
 void MainWindow::onCursorPickValue(bool _istoggled)
 {
-	std::cout << "test value is" << testvalue << std::endl;
 	std::cout << "After interactor slice number is " << m_SourceImageCurrentSlice << std::endl;
 
 	//qDebug() << "it's OK, areaInROI" << roiInfoModel->item(0, 0)->text() << endl;
 	//if (_istoggled)
 	//{
-	//	QHash < const QString, QWidget * > currentWindows = displayLayout->getAllWindow();
+	//	QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
 	//	QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
 	//	while (wdwIter.hasNext()) {
 	//		wdwIter.next();
@@ -728,63 +780,166 @@ void MainWindow::onDisplayPickValue(vtkObject* obj, unsigned long, void* client_
 	tuple_float = tuple_float / 100;
 	message += vtkVariant(tuple_float).ToString();
 
-	if (*_imageLabel == "ADC")
-	{
-		tuple_float *= 1000;
-		message += vtkVariant(tuple_float).ToString();
-		message += "*10^(-3)mm2/s";
-	}
-	else{
-		message += vtkVariant(tuple_float).ToString();
-	}
+if (*_imageLabel == "ADC")
+{
+	tuple_float *= 1000;
+	message += vtkVariant(tuple_float).ToString();
+	message += "*10^(-3)mm2/s";
+}
+else{
+	message += vtkVariant(tuple_float).ToString();
+}
 
-	//switch (*_imageLabel)
-	//{
-	//case "ADC":
-	//	tuple_float = tuple_float * m_ScalingParameter[2*ADC] + m_ScalingParameter[2 * ADC+1];
+//switch (*_imageLabel)
+//{
+//case "ADC":
+//	tuple_float = tuple_float * m_ScalingParameter[2*ADC] + m_ScalingParameter[2 * ADC+1];
 
-	//	tuple_float *= 1000;  // for 10^-3 display
-	//	// mentain the two bits after the decimal point
-	//	tuple_float = int(tuple_float * 100);
-	//	tuple_float = tuple_float / 100;
+//	tuple_float *= 1000;  // for 10^-3 display
+//	// mentain the two bits after the decimal point
+//	tuple_float = int(tuple_float * 100);
+//	tuple_float = tuple_float / 100;
 
-	//	message += vtkVariant(tuple_float).ToString();
-	//	message += "*10^(-3)mm2/s";
-	//	break;
-	//case FA:
-	//	tuple_float = tuple_float * m_ScalingParameter[2*FA] + m_ScalingParameter[2*FA+1];
-	//	//no need scientific notation
-	//	tuple_float = int(tuple_float * 100);
-	//	tuple_float = tuple_float / 100;
-	//	message += vtkVariant(tuple_float).ToString();
-	//	break;
-	//default:
-	//	message = " ";
-	//}
+//	message += vtkVariant(tuple_float).ToString();
+//	message += "*10^(-3)mm2/s";
+//	break;
+//case FA:
+//	tuple_float = tuple_float * m_ScalingParameter[2*FA] + m_ScalingParameter[2*FA+1];
+//	//no need scientific notation
+//	tuple_float = int(tuple_float * 100);
+//	tuple_float = tuple_float / 100;
+//	message += vtkVariant(tuple_float).ToString();
+//	break;
+//default:
+//	message = " ";
+//}
 
-	_Annotation->SetText(1, message.c_str());
-	renderer->AddActor(_Annotation);
-	rwi->Render();
+_Annotation->SetText(1, message.c_str());
+renderer->AddActor(_Annotation);
+rwi->Render();
 }
 
 void MainWindow::onClickTreeView(const QModelIndex &index)
 {
 	QStandardItem *item = roiInfoModel->itemFromIndex(index);
 	qDebug() << "User clicked item at row: " << index.row() << " col: " << index.column() << "is " << item->text() << endl;
+	QWidget *wdwItem(this->ui->ViewFrame->getWindow(QString("ADC")));
+	QVTKWidget* vtkWindow = static_cast <QVTKWidget*> (wdwItem);
+
 }
 
 void MainWindow::onFocusWdw(const QString widgetName)
 {
 	qDebug() << "mouse is at" << widgetName;
-	focusedWdwName = widgetName;
+
+	if (ActiveWdw.contains(widgetName))
+	{
+		ActiveWdw.removeOne(widgetName);
+		ui->ViewFrame->onRemoveLabelWdw(widgetName);
+		QWidget* focusWindow = ui->ViewFrame->getWindow(widgetName);
+		qDebug() << "Changing " << widgetName << " from Active to Inactive";
+	}
+	else{
+		ActiveWdw << widgetName;
+		ui->ViewFrame->onLabelWdw(widgetName);
+		QWidget* focusWindow = ui->ViewFrame->getWindow(widgetName);
+		QVTKWidget *vtkWindow = static_cast <QVTKWidget*> (focusWindow);
+		qDebug() << "Changing " << widgetName << " from Inactive to Active";		
+	}
+
+	QString debugOut; debugOut += QString("Active Windows are: ");
+	for (int i = 0; i < ActiveWdw.size(); ++i) 
+	{
+		debugOut += ActiveWdw.at(i);
+		debugOut += QString("_");
+	}
+	qDebug() << debugOut;
+}
+
+void MainWindow::onWheelWdw(const QString widgetName, int sliceSign, Qt::Orientation orient)
+{
+	QString result;
+	if (sliceSign > 0) {
+		if (orient == Qt::Vertical) {
+			if (m_SourceImageCurrentSlice < m_SourceImageMaxSlice)
+			{
+				result = widgetName + "Mouse Wheel Event: UP";
+				m_SourceImageCurrentSlice++;
+				ShareWindowEvent();
+			}
+		}
+		else {
+			result = widgetName + "Mouse Wheel Event: LEFT";
+		}
+	}
+	else if (sliceSign < 0) {
+		if (orient == Qt::Vertical) {
+			if (m_SourceImageCurrentSlice > m_SourceImageMinSlice)
+			{
+				result = widgetName + "Mouse Wheel Event: DOWN";
+				m_SourceImageCurrentSlice--;
+				ShareWindowEvent();
+			}
+		}
+		else {
+			result = widgetName + "Mouse Wheel Event: RIGHT";
+		}
+	}
+	qDebug() << result <<"cur Slice is "<< m_SourceImageCurrentSlice;
+}
+
+void MainWindow::onBroadcastEvent(QMouseEvent* e, const QString ImageName)
+{
+	if (ActiveWdw.size() > 1)
+	{
+		const QEvent::Type t = e->type();
+		//qDebug() << "BroadcastEvent event " << e->source() << " accepted? " << e->isAccepted()<< endl;
+		QMouseEvent* newEvent;
+		newEvent = new QMouseEvent(e->type(), e->localPos(), e->windowPos(),
+			e->screenPos(), e->button(), e->buttons(),
+			e->modifiers(), Qt::MouseEventSynthesizedByQt);
+
+		for (int i = 0; i < ActiveWdw.size(); ++i) {
+			if (ActiveWdw.at(i) != ImageName)
+			{
+				QVTKWidget *thisWindow = static_cast <QVTKWidget*> (ui->ViewFrame->getWindow(ActiveWdw.at(i)));
+				QCoreApplication::sendEvent(thisWindow, newEvent);
+			}
+		}
+
+		//QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
+		//QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
+		//while (wdwIter.hasNext()) {
+		//	wdwIter.next();
+		//	if (wdwIter.key() != ImageName)
+		//	{
+		//		QVTKWidget *thisWindow = static_cast <QVTKWidget*> (wdwIter.value());
+		//		//thisWindow->setAutomaticImageCacheEnabled(true);			
+		//		QCoreApplication::sendEvent(thisWindow, newEvent);
+		//	}
+		//}
+	}
+}
+
+void MainWindow::onKeyEvent(QKeyEvent * e)
+{
+	QWidget *wdwItem(this->ui->ViewFrame->getWindow(QString("ADC")));
+	QVTKWidget*	vtkWindow = static_cast <QVTKWidget*> (wdwItem);
+	QCoreApplication::postEvent(vtkWindow, e);
+}
+
+void MainWindow::debug(QMouseEvent* e)
+{
+	const QEvent::Type t = e->type();
+	qDebug() << "vtkWidget has recieved" << t <<"Accepted? "<<e->isAccepted();
+
 }
 
 void MainWindow::addROI() //bool _istoggled
 {
-	connect(displayLayout, SIGNAL(signalMouseAt(const QString)), this, SLOT(onFocusWdw(const QString)));
 	//Set Model
-	if (!focusedWdwName.isEmpty())
-	{ 
+	//if (ActiveWdw.size()>0)
+	//{ 
 	QStandardItem *item = roiInfoModel->invisibleRootItem();
 	QList<QStandardItem *> roiParentRow;
 	roiParentRow << new QStandardItem("ROI1") << new QStandardItem("Area") << new QStandardItem("Mean") << new QStandardItem("std") << new QStandardItem("Max") << new QStandardItem("Min");
@@ -795,42 +950,148 @@ void MainWindow::addROI() //bool _istoggled
 	roiInfoModel->setHeaderData(3, Qt::Horizontal, "Std", Qt::DisplayRole);
 	roiInfoModel->setHeaderData(4, Qt::Horizontal, "Max", Qt::DisplayRole);
 	roiInfoModel->setHeaderData(5, Qt::Horizontal, "Min", Qt::DisplayRole);
-	//roiParentRow << new QStandardItem(second);
-	//roiParentRow << new QStandardItem(third);
-	qDebug() << "add ROI on window " << focusedWdwName;
 
-	QWidget* focusWindow = displayLayout->getWindow(focusedWdwName);
-	QVTKWidget *thisWindow = static_cast <QVTKWidget*> (focusWindow);
+	QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
 
-	float scalingPara[2];
-	scalingPara[0] = ScalingParameters.value(focusedWdwName + '_s');
-	scalingPara[1] = ScalingParameters.value(focusedWdwName + '_k');
-	qDebug() << focusedWdwName << ": slope = " << scalingPara[0] << "intercept =" << scalingPara[1];
-	vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
+	
+	QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
+	vtkCollection* thisRoiCllct;
+	if (RoiCollection.contains(m_SourceImageCurrentSlice))
+	{
+		qDebug() << "Creating ROIs at slice " << m_SourceImageCurrentSlice << endl;
+		thisRoiCllct = RoiCollection.value(m_SourceImageCurrentSlice);
+	}
+	else
+	{
+		thisRoiCllct = vtkCollection::New();
+		qDebug() << "Add ROI to existing ROI collections at slice " << m_SourceImageCurrentSlice 
+			<< "ROI number = " << thisRoiCllct->GetNumberOfItems()<<endl;
+	}
+	//roiCurrentSlc.reserve(currentWindows.capacity);
+	//QHashIterator<const QString, vtkCollection* > roiIter(roiCurrentSlc);
+	while (wdwIter.hasNext()) {
+		wdwIter.next();
+		QVTKWidget *thisWindow = static_cast <QVTKWidget*> (wdwIter.value());
+		qDebug() << "add ROI on window " << wdwIter.key();
+		float scalingPara[2];
+		scalingPara[0] = ScalingParameters.value(wdwIter.key() + '_s');
+		scalingPara[1] = ScalingParameters.value(wdwIter.key() + '_k');
+		vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
+		//vtkImageActor* imageAct = static_cast<myVtkInteractorStyleImage*>(renInter->GetInteractorStyle())->GetImageActor();
+		QList<QStandardItem *> testRow;
+		testRow << new QStandardItem(wdwIter.key()) << new QStandardItem("1") << new QStandardItem("2") << new QStandardItem("3") << new QStandardItem("4") << new QStandardItem("5");
+		roiParentRow.first()->appendRow(testRow);
 
-	qDebug() << thisWindow->GetRenderWindow()->GetRenderers()->GetNumberOfItems() << "renderers are found" << endl;
-
-	vtkImageActor* imageAct = static_cast<myVtkInteractorStyleImage*>(renInter->GetInteractorStyle())->GetImageActor();
-
-	//vtkSmartPointer<vtkImageActor> imageAct = getImageActorFromRender(thisWindow->GetRenderWindow()->GetRenderers()->GetFirstRenderer());
-	QList<QStandardItem *> testRow;
-	testRow << new QStandardItem(focusedWdwName) << new QStandardItem("1") << new QStandardItem("2") << new QStandardItem("3") << new QStandardItem("4") << new QStandardItem("5");
-	roiParentRow.first()->appendRow(testRow);
-	vtkSmartPointer<vtkRoiInteractor> RoiInterObs = vtkRoiInteractor::New();
-
-	RoiInterObs->initialize(imageAct, renInter, roiParentRow.first(), scalingPara, testvalue);
-	std::cout << "test value is" << testvalue << std::endl;
+		//vtkSmartPointer<vtkRoiInteractor> RoiInterObs = vtkRoiInteractor::New();
+		vtkRoiInteractor* RoiInterObs = new vtkRoiInteractor;
+		RoiInterObs->initialize(renInter, roiParentRow.first(), scalingPara, wdwIter.key(), thisRoiCllct);
 	}
 
-
-	//roiParentRow.first()->appendRow(testRow);
-	//QStandardItem * areaInROI = roiParentRow.first()->child(0, 0);
-	/*areaInROI = roiParentRow.first()->child(0, 1);
-	qDebug() << "it's OK, meanInROI" << areaInROI->text() << endl;*/
-	//style->GetRoiInteraction()->AddWidgetItem();
+	if (thisRoiCllct->GetNumberOfItems() > 0)
+	{
+		RoiCollection.insert(m_SourceImageCurrentSlice, thisRoiCllct);
+	}else
+	{
+		thisRoiCllct->Delete();
+	}
+	
 }
 
+void MainWindow::onWdwResizeEvent(const QString widgetName, const QSize oldsize, const QSize cursize)
+{
+	qDebug() << widgetName << "changes size from " << oldsize << "to " << cursize << endl;
+	QVTKWidget *qvtkWidget = static_cast <QVTKWidget*>(ui->ViewFrame->getWindow(widgetName));
+	if (qvtkWidget)
+	{
+		vtkSmartPointer < vtkRendererCollection> renderers = qvtkWidget->GetRenderWindow()->GetRenderers();
+		if (renderers)
+		{
+			renderers->GetNumberOfItems();
+			renderers->InitTraversal();
+			while (vtkSmartPointer < vtkRenderer> renderer = renderers->GetNextItem())
+			{
+				renderer->ResetCamera();//Reset window before ImageAutoFillWindow
+				double *bounds = renderer->ComputeVisiblePropBounds();
+				//int *size = qvtkWidget->GetRenderWindow()->GetSize();
+				//if (index == numberOfWindows)
+				//{
+				int windowSize[2]; windowSize[0] = cursize.width(); windowSize[1] = cursize.height();
+				//}
 
+				//std::cout <<"image x bounds = " << bounds[1] << std::endl;
+				//std::cout << "window width = " << windowSize[0] << " window height = " << windowSize[1] << std::endl;
+				//qDebug() << qvtkWidget->geometry() << endl;
+				this->ImageAutoFillWindow(renderer->GetActiveCamera(), bounds, windowSize);
+				//might need to break out if number of renderers > 1
+				//break;
+				//renderer->GetActiveCamera()->ParallelProjectionOn();
+				//double xFov = bounds[1] - bounds[0];
+				//double yFov = bounds[3] - bounds[2];
+				//double screenRatio = double(cursize.height()) / cursize.width();//height / width;
+				//double imageRatio = yFov / xFov;
+				//double parallelScale = imageRatio > screenRatio ? yFov : screenRatio / imageRatio*yFov;
+				//renderer->GetActiveCamera()->SetParallelScale(0.5*parallelScale);
+			}
+		}
+		qvtkWidget->GetRenderWindow()->Render();
+	}
+}
 
+void MainWindow::ImageAutoFillWindow(vtkSmartPointer <vtkCamera> camera, double * imageBounds, int *windowSize)
+{
+	camera->ParallelProjectionOn();
 
+	double xFov = imageBounds[1] - imageBounds[0];
+	double yFov = imageBounds[3] - imageBounds[2];
+
+	double screenRatio = double(windowSize[1]) / windowSize[0];//height / width;
+	double imageRatio = yFov / xFov;
+
+	double parallelScale = imageRatio > screenRatio ? yFov : screenRatio / imageRatio*yFov;
+	camera->SetParallelScale(0.5*parallelScale);
+	//camera->SetFocalPoint(center[0], center[1], center[2]);
+	//camera->SetPosition(center[0], center[1], focalDepth);
+}
+
+void MainWindow::onExportImage()
+{
+	if (ActiveWdw.size() > 0)
+	{
+		QString debugOut; debugOut += QString("Outputing Images : ");
+		for (int i = 0; i < ActiveWdw.size(); ++i)
+		{
+			debugOut += ActiveWdw.at(i);
+			debugOut += QString("_");
+		}
+		qDebug() << debugOut;
+	}
+
+	QString directory =
+		QDir::toNativeSeparators(QFileDialog::getExistingDirectory(this, tr("Save Files to..."), QDir::currentPath()));
+	//ExportDialog = new ctkFileDialog(this);
+	//// Since copy on import is not working at the moment
+	//// this feature is diabled
+	////        QCheckBox* importCheckbox = new QCheckBox("Copy on import", m_ImportDialog);
+	////        m_ImportDialog->setBottomWidget(importCheckbox);
+	//ExportDialog->setFileMode(QFileDialog::Directory);
+	//ExportDialog->setLabelText(QFileDialog::Accept, "Import");
+	//ExportDialog->setWindowTitle("Import DICOM files from directory ...");
+	//ExportDialog->setWindowModality(Qt::ApplicationModal);
+	//connect(ExportDialog, SIGNAL(fileSelected(QString)), this, SLOT(OnStartDicomExport(QString)));
+	qDebug() << "dicom export to"<<directory << endl;
+	ui->diffusionModule->onCalc3D(directory);
+}
+
+//void MainWindow::OnStartDicomExport(QString directory)
+//{
+//	//std::cout << "" << std::endl;
+//	//std::cout << "----------------------Display VolumeData----------" << std::endl;
+//	//this->DisplayDicomInfo(scaleVolumeImage->GetOutput());
+//
+//	//write Dicom image
+//	//std::cout << "----------------------------------------------------" << endl;
+//	//std::cout << "Writing VTK image data as Dicom Files:" << endl;
+//	//std::cout << "----------------------------------------------------" << endl
+//
+//}
 

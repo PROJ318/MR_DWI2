@@ -103,12 +103,18 @@ public:
 	*/
 	void Initialize();
 
+	/**
+	* \brief A QHash to store calculated 3D image.
+	*/
+	QHash< const QString, vtkSmartPointer<vtkImageData> >  image3Dstorage;
 signals:
 
 	///// @brief emitted when dicomdata is imported.
 	void SignalImageLoaded(bool);
 
 	void SignalTestButtonFired(bool _istoggled, vtkSmartPointer <vtkImageData>, QString, float , float );
+
+	void signal3DImage(vtkSmartPointer <vtkImageData>, QString);
 
 	public slots:
 
@@ -121,6 +127,11 @@ signals:
 	///// This slot recalculate all displaying image.
 	///// 
 	void onRecalcAll(int);
+
+	///// @brief
+	///// In this slot, 3d calculation of input buttonID. 
+	///// 
+	void onCalc3D(QString directory);
 
 	protected slots:
 
@@ -169,9 +180,15 @@ signals:
 	///// 
 	void onThreshSlide(double threshhold);
 
+	///// @brief
+	///// In this slot, it is a portal to processing's for specific images. 
+	///// 
+	void onSelectImage(const QString);
+
+
 protected:
 
-	void UpdateMaskVectorImage(DicomHelper* inputDcmData, DiffusionCalculatorVectorImageType::Pointer outputImage);//This should be moved to DicomHelper class.
+	void UpdateMaskVectorImage(DicomHelper* inputDcmData, int, DiffusionCalculatorVectorImageType::Pointer outputImage);//This should be moved to DicomHelper class.
 	void AdcCalculator(vtkSmartPointer <vtkImageData> imageData, float& scale, float& slope);
 	void FaCalculator(vtkSmartPointer <vtkImageData> imageData, float& scale, float& slope);
 	void ColorFACalculator(vtkSmartPointer <vtkImageData> imageData);
@@ -179,6 +196,7 @@ protected:
 	void CDWICalculator(vtkSmartPointer <vtkImageData> imageData, float& scale, float& slope);
 	void IVIMCalculator(vtkSmartPointer <vtkImageData> imageData);
 	void IVIMImageViewer(vtkSmartPointer <vtkImageData>, QVTKWidget *qvtkWidget, int imageIdx);
+	void ComputeCurrentSourceImage(int currentSlice, vtkSmartPointer <vtkImageData> SourceImageData);
 	//void IVIMCalculator2(std::vector <vtkSmartPointer <vtkImageData>> vtkImageDataVector);
 	//void DiffusionCore::IVIMImageViewer2(std::vector <vtkSmartPointer <vtkImageData>> vtkImageDataVector, QVTKWidget *qvtkWidget);
 	
@@ -200,8 +218,9 @@ protected:
 	double m_MaskThreshold;
 	double m_ComputedBValue;
 
-	QButtonGroup* ButtonTable; // A QButtonGroup to store all algorithm Buttons. 
+	QButtonGroup* ButtonTable; // A QButtonGroup to store all algorithm Buttons;
 
+	QList<int> Diff_ActiveWdw; // This should be synchronising to mainwindow activeWDW;
 };
 
 

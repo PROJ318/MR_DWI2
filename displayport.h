@@ -4,8 +4,9 @@
 #include <QObject>
 #include <QWidget>
 #include <QGridLayout>
+#include <qframe.h>
 
-class DisplayPort : public QGridLayout
+class DisplayPort : public QFrame
 {
 	Q_OBJECT
 public:
@@ -16,7 +17,7 @@ public:
 	* \brief DisplayPort(QWidget *parent) constructor. DisplayPort is an expansion of QGridlayout
 	*
 	*/
-	explicit DisplayPort(QWidget * parent = 0);
+	explicit DisplayPort(QWidget* parent = NULL, Qt::WindowFlags f = 0);
 
 	/**
 	* \brief DiffusionCore destructor.
@@ -58,16 +59,29 @@ public:
 	//*/
 	//std::vector< const QString > getAllWindowNames();
 signals:
-	void signalMouseAt(const QString);
+	void signalFocusIn(const QString);
+	void signalWheel(const QString, int, Qt::Orientation);
+	void signalMouseEvent(QMouseEvent *,const QString);
+	void signalResizeEvent(const QString, const QSize, const QSize);
+	//void signalMouseReleasedIn(QMouseEvent *);
+	//void signalKeyEvent(QKeyEvent* );
+
+	public slots:
+	void onLabelWdw(const QString imageLabel);
+	void onRemoveLabelWdw(const QString imageLabel);
 
 protected:
-
+	
+	//void paintEvent(QPaintEvent *event) Q_DECL_OVERRIDE;
 	void index2Pos(int index, int& row, int& col);
 	void pos2Index(int& index, int row, int col);
-	bool eventFilter(QObject *, QEvent *);    //◊¢“‚’‚¿Ô
+	bool eventFilter(QObject *, QEvent *); 
+
+	void onLabelWdw(QObject *);
+	void onRemoveLabelWdw(QObject *);
 
 private:
-	//QGridLayout* DC_gridlayout;
+	QGridLayout* gridlayout;
 	int getWidgetInd(const QString imageLabel);
 	std::vector< const QString > DC_LayoutMap;
 };

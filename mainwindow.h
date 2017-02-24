@@ -12,6 +12,7 @@
 //#include <QMessageBox>
 //#include <qdebug.h>
 #include <QMainWindow>
+#include <qmap.h>
 
 //VTK lib
 #include <vtkSmartPointer.h>
@@ -29,6 +30,7 @@ class DisplayPort;
 class vtkCamera;
 class DicomHelper;
 class QStandardItemModel;
+class vtkCollection;
 
 class MainWindow : public QMainWindow
 {
@@ -62,6 +64,9 @@ signals:
 	void onStartdicom();
 	//void onDicomLoaded(bool);
 	void onProcButtonClicked(bool, vtkSmartPointer <vtkImageData>, const QString, const float, const float);
+
+	void onCalc3DButtonClicked(QString);
+
 	void OnImageFilesLoaded(const QStringList& fileLists);
 
 	///// @brief
@@ -86,40 +91,76 @@ signals:
 	///// 
 	void onClickTreeView(const QModelIndex &index);
 
-	///// @brief
-	///// In this slot, react to grabFocus on a centain widget.
-	///// 
+	/// @brief
+	/// In this slot, react to grabFocus on a centain widget.
+	/// 
 	void onFocusWdw(const QString);
+
+	/// @brief
+	/// In this slot, react to mouse wheel event on a widget.
+	/// 
+	void onWheelWdw(const QString, int, Qt::Orientation);
+
+	/// @brief
+	/// In this slot, react to mouse press\release\move event on a widget.
+	/// 
+	void onBroadcastEvent(QMouseEvent *,const QString);
+
+	/// @brief
+	/// In this slot, react to mouse press\release\move event on a widget.
+	/// 
+	void onWdwResizeEvent(const QString, const QSize, const QSize);
+
+	void debug(QMouseEvent*);
+
+	void onKeyEvent(QKeyEvent *);
+
+	void onExportImage();
+
+	//void OnStartDicomExport(QString directory);
+
 protected:
 
 	void DisplayDicomInfo(vtkSmartPointer <vtkImageData> imageData);
 	void SortingSourceImage(); //This should be moved to DicomHelper class
-	void ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, std::string imageLabel);
 
+	void ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, std::string imageLabel);
 	void IVIMImageViewer(vtkSmartPointer <vtkImageData>, QVTKWidget *qvtkWidget, int imageIdx);
-	void SetImageFillWindow(vtkSmartPointer <vtkCamera> camera, vtkSmartPointer <vtkImageData> imageData, double width, double height);
+
 	
 	void ShareWindowEvent();	
 
+	void RenderAll();
+	//void SetImageFillWindow(vtkSmartPointer <vtkCamera> camera, vtkSmartPointer <vtkImageData> imageData, double width, double height);
+	void ImageAutoFillWindow(vtkSmartPointer <vtkCamera> camera, double * imageBounds, int *windowSize);
+
 private:
-	QHash < const QString, float >  ScalingParameters;
+
+	QHash< const QString, float >  ScalingParameters;
+	QHash<int, vtkCollection*> RoiCollection;
+	QList < QString >  ActiveWdw;
+
+	//QHash< const QString, vtkSmartPointer<vtkImageData> >  image3Dstorage;
+
 	Ui::MainWindow *ui;
 	DicomModule* DicomUI;
-	DicomHelper* m_DicomHelper;//initialization? 
-	DisplayPort* displayLayout;
+	//ctkFileDialog* ExportDialog;
+	//DisplayPort* ui->ViewFrame;
 
 	QStandardItemModel *roiInfoModel;
+
+	DicomHelper* m_DicomHelper;//initialization? 
 	vtkSmartPointer < vtkImageData > sourceImage;
 
-	QString focusedWdwName;
 	int sourceScalarType = 0;
+	
 	int m_SourceImageCurrentSlice;
-	//int m_QuantitativeImageCurrentSlice;
+	int m_SourceImageMaxSlice;
+	int m_SourceImageMinSlice;	
 
 	double m_MaskThreshold;
 	double m_ComputedBValue;
 
-	int testvalue;
 };
 
 #endif // MAINWINDOW_H

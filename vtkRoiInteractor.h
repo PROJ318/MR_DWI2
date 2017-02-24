@@ -57,15 +57,14 @@ class vtkCollection;
 //	float scalingPara[2];
 //};
 
-class vtkRoiInteractor : public vtkInteractorObserver
+class vtkRoiInteractor //: public vtkInteractorObserver
 {
 public:
 	// Description:
 	// Instantiate the object.
 	static vtkRoiInteractor *New();
-	vtkTypeMacro(vtkRoiInteractor, vtkInteractorObserver);
+	//vtkTypeMacro(vtkRoiInteractor, vtkInteractorObserver);
 	//void PrintSelf(ostream& os, vtkIndent indent);
-
 	//void SetQTextBrowser(QTextBrowser* browser);
 	//void SetImageActor(vtkImageActor* actor);
 	//void SetScalingPara(float scaling[])
@@ -73,7 +72,6 @@ public:
 	//	scalingPara[0] = scaling[0];
 	//	scalingPara[1] = scaling[1];
 	//};
-
 	//void AddWidgetItem();
 	void RemoveWidgetIterm(vtkContourWidget* contour);
 
@@ -81,9 +79,10 @@ public:
 
 public:
 	vtkRoiInteractor();
-	void initialize(vtkImageActor*, vtkSmartPointer<vtkRenderWindowInteractor>, QStandardItem * , float*, int&);
+	void initialize(vtkSmartPointer<vtkRenderWindowInteractor>, QStandardItem*, float*, const QString, vtkCollection*);
 	~vtkRoiInteractor();
 
+	QString imageName;
 	//QList<QStandardItem *> roiInfoRow;
 	//QTextBrowser* QtextBrowser;	
 	//vtkImageActor* imageActor;
@@ -92,28 +91,8 @@ public:
 protected:
 
 	vtkSmartPointer<vtkRenderWindowInteractor> interactor;
+	void OnRightButtonDown();
 
-	virtual void OnRightButtonDown();
-
-
-	//virtual void MoveSliceComponentForward();
-
-	//virtual void MoveSliceForward();
-
-	//virtual void MoveSliceBackward();
-
-	//virtual void MoveSliceComponentBackward();
-
-	//virtual void OnKeyDown();
-
-	//virtual void OnMouseWheelForward();
-
-	//virtual void OnMouseWheelBackward();
-
-	////Get keybord input, only support Reset window level for now
-	//virtual void OnChar();
-
-	//virtual void WindowLevel();
 };
 
 

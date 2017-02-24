@@ -593,6 +593,8 @@
    <header>ctkSliderWidget.h</header>
   </customwidget>
  </customwidgets>
- <resources/>
+ <resources>
+  <include location="../darkstyle/style.qrc"/>
+ </resources>
  <connections/>
 </ui>
