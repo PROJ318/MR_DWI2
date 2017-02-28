@@ -138,9 +138,11 @@ MainWindow::MainWindow(QWidget *parent) :
 	connect(this, SIGNAL(SignalSetSourceImage(DicomHelper*,int)), ui->diffusionModule, SLOT(onSetSourceImage(DicomHelper*,int)));
 	connect(this, SIGNAL(SignalRecalcAll(int)), ui->diffusionModule, SLOT(onRecalcAll(int)));
 
-	//Segment Module Connections
-	connect(ui->pointer1, SIGNAL(pressed()), this, SLOT(addROI()));
-	connect(ui->pointer2, SIGNAL(toggled(bool)), this, SLOT(onCursorPickValue(bool)));
+	//ImageInfo Module Connections
+	//connect(ui->pointer2, SIGNAL(toggled(bool)), this, SLOT(onCursorPickValue(bool)));
+
+	//ROI Module Connections	
+	connect(ui->newROI, SIGNAL(clicked()), this, SLOT(addROI()));
 	connect(ui->statisBrowser, SIGNAL(clicked(QModelIndex )), this, SLOT(onClickTreeView(QModelIndex )));
 
 	//View Frame Connections
@@ -492,7 +494,7 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 
 void MainWindow::ShareWindowEvent()
 {
-	std::cout << "[ShareWindowEvent] Sending recalculate signal" << std::endl;
+	std::cout << "[ShareWindowEvent] send recalculate signal for a new slice" << std::endl;
 	
 	//vtkSmartPointer<vtkImageData> currentSourceImage = vtkSmartPointer<vtkImageData>::New();
 	//this->ComputeCurrentSourceImage(m_SourceImageCurrentSlice, currentSourceImage);
@@ -501,33 +503,34 @@ void MainWindow::ShareWindowEvent()
 
 	emit SignalRecalcAll(m_SourceImageCurrentSlice);
 
-	if (RoiCollection.contains(m_SourceImageCurrentSlice))
-	{
-		QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
-		qDebug() << "Reuse ROIs at slice " << m_SourceImageCurrentSlice << endl;		
-		QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
-		while (wdwIter.hasNext()) {
-			wdwIter.next();
-			QVTKWidget *thisWindow = static_cast <QVTKWidget*> (wdwIter.value());
-			qDebug() << "Retrieve ROI on window " << wdwIter.key();
-			float scalingPara[2];
-			scalingPara[0] = ScalingParameters.value(wdwIter.key() + '_s');
-			scalingPara[1] = ScalingParameters.value(wdwIter.key() + '_k');
+	//if (RoiCollection.contains(m_SourceImageCurrentSlice))
+	//{
+	//	QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
+	//	qDebug() << "Reuse ROIs at slice " << m_SourceImageCurrentSlice << endl;		
+	//	QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
+	//	while (wdwIter.hasNext()) {
+	//		wdwIter.next();
+	//		QVTKWidget *thisWindow = static_cast <QVTKWidget*> (wdwIter.value());
+	//		qDebug() << "Retrieve ROI on window " << wdwIter.key();
+	//		float scalingPara[2];
+	//		scalingPara[0] = ScalingParameters.value(wdwIter.key() + '_s');
+	//		scalingPara[1] = ScalingParameters.value(wdwIter.key() + '_k');
 
-			vtkSmartPointer<vtkRenderWindow> renderW = static_cast<vtkRenderWindow*>(thisWindow->GetRenderWindow());
-			vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
-			//vtkImageActor* imageAct = static_cast<myVtkInteractorStyleImage*>(renInter->GetInteractorStyle())->GetImageActor();			
-			int numberOfWidgets = RoiCollection.value(m_SourceImageCurrentSlice)->GetNumberOfItems();
-			for (int i = 0; i < numberOfWidgets; i++)
-			{
-				vtkContourWidget* contour = vtkContourWidget::SafeDownCast(RoiCollection.value(m_SourceImageCurrentSlice)->GetItemAsObject(i));
-				contour->SetInteractor(renInter);
-				contour->On();
-				//vtkContourRepresentation* rep = contour->GetContourRepresentation();
-			}
-			renderW->Render();
-		}
-	}
+	//		vtkSmartPointer<vtkRenderWindow> renderW = static_cast<vtkRenderWindow*>(thisWindow->GetRenderWindow());
+	//		vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
+	//		//vtkImageActor* imageAct = static_cast<myVtkInteractorStyleImage*>(renInter->GetInteractorStyle())->GetImageActor();			
+	//		int numberOfWidgets = RoiCollection.value(m_SourceImageCurrentSlice)->GetNumberOfItems();
+	//		for (int i = 0; i < numberOfWidgets; i++)
+	//		{
+	//			vtkPolydata* polydata = vtkPolydata::SafeDownCast(RoiCollection.value(m_SourceImageCurrentSlice)->GetItemAsObject(i));
+	//			vtkContourWidget* contour = vtkContourWidget::SafeDownCast();
+	//			contour->SetInteractor(renInter);
+	//			contour->On();
+	//			//vtkContourRepresentation* rep = contour->GetContourRepresentation();
+	//		}
+	//		renderW->Render();
+	//	}
+	//}
 
 }
 
@@ -627,50 +630,6 @@ void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKW
 	//std::cout << "QVTKWIDEGT SIZE AFTER show= " << qvtkWidget->width() << "-" << qvtkWidget->height() << std::endl;
 
 }
-
-//void MainWindow::SetImageFillWindow(vtkSmartPointer<vtkCamera> camera, vtkSmartPointer <vtkImageData> imageData, double width, double height){
-//
-//	if (!(camera || imageData)) return;
-//
-//	//int dims[3];
-//	double origins[3];
-//	double spacing[3];
-//	int extent[6];
-//	//	double range[2];
-//	double center[3];
-//	//imageData->GetDimensions(dims);
-//	imageData->GetOrigin(origins);
-//	imageData->GetSpacing(spacing);
-//	imageData->GetExtent(extent);
-//
-//
-//
-//	camera->ParallelProjectionOn();
-//
-//	double xFov = (-extent[0] + extent[1] + 1)*spacing[0];
-//	double yFov = (-extent[2] + extent[3] + 1)*spacing[1];
-//
-//	double screenRatio = height / width;
-//	double imageRatio = yFov / xFov;
-//
-//	double parallelScale = imageRatio > screenRatio ? yFov : screenRatio / imageRatio*yFov;
-//
-//	double focalDepth = camera->GetDistance();
-//
-//	center[0] = origins[0] + spacing[0] * .5*(extent[0] + extent[1]);
-//	center[1] = origins[1] + spacing[1] * .5*(extent[2] + extent[3]);
-//	center[2] = origins[2] + spacing[2] * .5*(extent[4] + extent[5]);
-//
-//	camera->SetParallelScale(0.5*parallelScale);
-//	//std::cout << "parallel scale minHalfFov " << minHalfFov << std::endl;
-//	//std::cout << "focal depth " << focalDepth << std::endl;
-//	//std::cout << "view angle " << camera->GetViewAngle() << std::endl;
-//	//std::cout << "Quantitative imageviewer, input width, input height =  " << width << " " << height << std::endl;
-//	//std::cout << "center " << center[0] << " " << center[1] << " " << center[2] << std::endl;
-//	camera->SetFocalPoint(center[0], center[1], center[2]);
-//	camera->SetPosition(center[0], center[1], focalDepth);
-//	//camera->SetViewAngle(80);
-//}
 
 void MainWindow::onCursorPickValue(bool _istoggled)
 {
@@ -836,14 +795,14 @@ void MainWindow::onFocusWdw(const QString widgetName)
 	{
 		ActiveWdw.removeOne(widgetName);
 		ui->ViewFrame->onRemoveLabelWdw(widgetName);
-		QWidget* focusWindow = ui->ViewFrame->getWindow(widgetName);
+		//QWidget* focusWindow = ui->ViewFrame->getWindow(widgetName);
 		qDebug() << "Changing " << widgetName << " from Active to Inactive";
 	}
 	else{
 		ActiveWdw << widgetName;
 		ui->ViewFrame->onLabelWdw(widgetName);
-		QWidget* focusWindow = ui->ViewFrame->getWindow(widgetName);
-		QVTKWidget *vtkWindow = static_cast <QVTKWidget*> (focusWindow);
+		//QWidget* focusWindow = ui->ViewFrame->getWindow(widgetName);
+		//QVTKWidget *vtkWindow = static_cast <QVTKWidget*> (focusWindow);
 		qDebug() << "Changing " << widgetName << " from Inactive to Active";		
 	}
 
@@ -935,66 +894,74 @@ void MainWindow::debug(QMouseEvent* e)
 
 }
 
-void MainWindow::addROI() //bool _istoggled
+void MainWindow::addROI() //create a new ROI
 {
-	//Set Model
-	//if (ActiveWdw.size()>0)
-	//{ 
-	QStandardItem *item = roiInfoModel->invisibleRootItem();
-	QList<QStandardItem *> roiParentRow;
-	roiParentRow << new QStandardItem("ROI1") << new QStandardItem("Area") << new QStandardItem("Mean") << new QStandardItem("std") << new QStandardItem("Max") << new QStandardItem("Min");
-	item->appendRow(roiParentRow);
-	roiInfoModel->setHeaderData(0, Qt::Horizontal, "Item", Qt::DisplayRole);
-	roiInfoModel->setHeaderData(1, Qt::Horizontal, "Area", Qt::DisplayRole);
-	roiInfoModel->setHeaderData(2, Qt::Horizontal, "Mean", Qt::DisplayRole);
-	roiInfoModel->setHeaderData(3, Qt::Horizontal, "Std", Qt::DisplayRole);
-	roiInfoModel->setHeaderData(4, Qt::Horizontal, "Max", Qt::DisplayRole);
-	roiInfoModel->setHeaderData(5, Qt::Horizontal, "Min", Qt::DisplayRole);
+	QStandardItem *root = roiInfoModel->invisibleRootItem();
+	QList<QStandardItem *> newROIRow;
+	newROIRow << new QStandardItem("ROI1") << new QStandardItem("Area") << new QStandardItem("Value") << new QStandardItem("Range");
+	root->appendRow(newROIRow);
 
+	//1. Overide all windows to be active
+	QList < QString >  temp;
+	foreach(QString s, ActiveWdw){ temp << s; }
 	QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
-
-	
 	QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
+	while (wdwIter.hasNext()) 
+	{
+		wdwIter.next();
+		if (!ActiveWdw.contains(wdwIter.key()))
+		{
+			ActiveWdw << wdwIter.key();
+		}
+	}
+
+	//2. Add a new Polydata into vtkcollection of this slice
 	vtkCollection* thisRoiCllct;
 	if (RoiCollection.contains(m_SourceImageCurrentSlice))
 	{
-		qDebug() << "Creating ROIs at slice " << m_SourceImageCurrentSlice << endl;
+
 		thisRoiCllct = RoiCollection.value(m_SourceImageCurrentSlice);
+		qDebug() << "Add ROI to existing ROI collections at slice " << m_SourceImageCurrentSlice
+			<< "ROI number = " << thisRoiCllct->GetNumberOfItems() << endl;
 	}
 	else
 	{
 		thisRoiCllct = vtkCollection::New();
-		qDebug() << "Add ROI to existing ROI collections at slice " << m_SourceImageCurrentSlice 
-			<< "ROI number = " << thisRoiCllct->GetNumberOfItems()<<endl;
+		qDebug() << "Creating ROIs at slice " << m_SourceImageCurrentSlice << endl;
+
 	}
 	//roiCurrentSlc.reserve(currentWindows.capacity);
 	//QHashIterator<const QString, vtkCollection* > roiIter(roiCurrentSlc);
-	while (wdwIter.hasNext()) {
-		wdwIter.next();
-		QVTKWidget *thisWindow = static_cast <QVTKWidget*> (wdwIter.value());
-		qDebug() << "add ROI on window " << wdwIter.key();
+	foreach(QString wdwName, ActiveWdw)
+	{
+		QVTKWidget *thisWindow = static_cast <QVTKWidget*> (ui->ViewFrame->getWindow(wdwName));
+		qDebug() << "add ROI on window " << wdwName;
 		float scalingPara[2];
-		scalingPara[0] = ScalingParameters.value(wdwIter.key() + '_s');
-		scalingPara[1] = ScalingParameters.value(wdwIter.key() + '_k');
+		scalingPara[0] = ScalingParameters.value(wdwName + '_s');
+		scalingPara[1] = ScalingParameters.value(wdwName + '_k');
 		vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
-		//vtkImageActor* imageAct = static_cast<myVtkInteractorStyleImage*>(renInter->GetInteractorStyle())->GetImageActor();
-		QList<QStandardItem *> testRow;
-		testRow << new QStandardItem(wdwIter.key()) << new QStandardItem("1") << new QStandardItem("2") << new QStandardItem("3") << new QStandardItem("4") << new QStandardItem("5");
-		roiParentRow.first()->appendRow(testRow);
-
-		//vtkSmartPointer<vtkRoiInteractor> RoiInterObs = vtkRoiInteractor::New();
 		vtkRoiInteractor* RoiInterObs = new vtkRoiInteractor;
-		RoiInterObs->initialize(renInter, roiParentRow.first(), scalingPara, wdwIter.key(), thisRoiCllct);
+		RoiInterObs->initialize(renInter, newROIRow.first(), scalingPara, wdwName, thisRoiCllct);
 	}
 
+	qDebug() << "after roi drawing, rois in this slice = " << thisRoiCllct->GetNumberOfItems();
 	if (thisRoiCllct->GetNumberOfItems() > 0)
 	{
 		RoiCollection.insert(m_SourceImageCurrentSlice, thisRoiCllct);
-	}else
+	}
+	else
 	{
 		thisRoiCllct->Delete();
 	}
-	
+
+	//1. Overide all windows to be active
+	foreach(QString s, ActiveWdw)
+	{
+		if (!temp.contains(s)){
+			ActiveWdw.removeAll(s);
+		}
+	}
+	qDebug() << ActiveWdw;
 }
 
 void MainWindow::onWdwResizeEvent(const QString widgetName, const QSize oldsize, const QSize cursize)
@@ -1082,16 +1049,4 @@ void MainWindow::onExportImage()
 	ui->diffusionModule->onCalc3D(directory);
 }
 
-//void MainWindow::OnStartDicomExport(QString directory)
-//{
-//	//std::cout << "" << std::endl;
-//	//std::cout << "----------------------Display VolumeData----------" << std::endl;
-//	//this->DisplayDicomInfo(scaleVolumeImage->GetOutput());
-//
-//	//write Dicom image
-//	//std::cout << "----------------------------------------------------" << endl;
-//	//std::cout << "Writing VTK image data as Dicom Files:" << endl;
-//	//std::cout << "----------------------------------------------------" << endl
-//
-//}
 
