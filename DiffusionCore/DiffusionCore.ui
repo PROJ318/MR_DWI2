@@ -23,10 +23,10 @@
       </sizepolicy>
      </property>
      <property name="frameShape">
-      <enum>QFrame::Box</enum>
+      <enum>QFrame::NoFrame</enum>
      </property>
      <property name="frameShadow">
-      <enum>QFrame::Sunken</enum>
+      <enum>QFrame::Plain</enum>
      </property>
      <property name="widgetResizable">
       <bool>true</bool>
@@ -36,8 +36,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>223</width>
-        <height>796</height>
+        <width>227</width>
+        <height>800</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -478,7 +478,7 @@
            </widget>
           </item>
           <item>
-           <widget class="ctkSliderWidget" name="ThreshSlider">
+           <widget class="ctkSliderWidget" name="ThreshSlider" native="true">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
               <horstretch>3</horstretch>
@@ -555,7 +555,7 @@
            </widget>
           </item>
           <item>
-           <widget class="ctkSliderWidget" name="bSlider">
+           <widget class="ctkSliderWidget" name="bSlider" native="true">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
               <horstretch>3</horstretch>
