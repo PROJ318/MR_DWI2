@@ -67,7 +67,7 @@ public:
 		vtkContourRepresentation *rep = vtkContourRepresentation::SafeDownCast(contour->GetRepresentation());
 		vtkOrientedGlyphContourRepresentation *glyContour =
 			vtkOrientedGlyphContourRepresentation::SafeDownCast(rep);
-
+		qDebug() << "contour state is" << contour->GetWidgetState();
 		//contourWidget = contour;
 	
 		vtkSmartPointer<myVtkInteractorStyleImage> style = 
@@ -79,11 +79,17 @@ public:
 			vtkSmartPointer<vtkPolyData>::New();
 		//_tracer->GetPath(path);
 		path = rep->GetContourRepresentationAsPolyData();
+		//contourActor = rep->GetContourRepresentationAsPolyData();
 		std::cout << "There are " << path->GetNumberOfPoints() << " points in the path." << std::endl;
-		double* coordinate;
-		coordinate = path->GetPoint(5);
-		cout << "point 5 " << coordinate[0] <<"," <<coordinate[1] << "," << coordinate[2] << endl;
-		 
+		
+		//double* coordinate;
+		//coordinate = contourActor->GetPoint(5);
+		//cout << "point 5 " << coordinate[0] <<"," <<coordinate[1] << "," << coordinate[2] << endl;
+		
+		if (roiName == QString("Source"))
+		{
+			RoiCllct->AddItem(path);
+		}
 		vtkSmartPointer<vtkPolyDataToImageStencil> polyDataToImageStencil =
 			vtkSmartPointer<vtkPolyDataToImageStencil>::New();
 		polyDataToImageStencil->SetTolerance(0);
@@ -106,42 +112,20 @@ public:
 		float Min = *imageAccumulate->GetMin()*scalingValue + shiftValue;
 		float std = *imageAccumulate->GetStandardDeviation()*scalingValue + shiftValue;
 
-		//QString RoiInfo(QObject::tr("Area : %1").arg(Area));
-		//RoiInfo.append("\n");
-		//RoiInfo.append(QObject::tr("Mean : %1").arg(Mean));
-		//RoiInfo.append("\n");
-		//RoiInfo.append(QObject::tr("Max : %1").arg(Max));
-		//RoiInfo.append("\n");
-		//RoiInfo.append(QObject::tr("Min : %1").arg(Min));
-		//RoiInfo.append("\n");
-		//RoiInfo.append(QObject::tr("std : %1").arg(std));
-		//RoiInfo.append("\n");
-		//browser->setText(RoiInfo);
-		
-		cout << parentItem->rowCount() << endl;
-		for (int row = 0; row < parentItem->rowCount(); ++row)
-		{
-			QStandardItem* child = parentItem->child(row);
-			if (child->text() == roiName)
-			{
-				parentItem->child(row, 1)->setText(QString("%1").arg(Area));
-				parentItem->child(row, 2)->setText(QString("%1").arg(Mean));
-				parentItem->child(row, 3)->setText(QString("%1").arg(std));
-				parentItem->child(row, 4)->setText(QString("%1").arg(Max));
-				parentItem->child(row, 5)->setText(QString("%1").arg(Min));
-			}
+		QList<QStandardItem *> newRow;
+		newRow << new QStandardItem(roiName);
+		newRow << new QStandardItem(QString("%1").arg(Area));
+		newRow << new QStandardItem(QString("%1 (%2)").arg(Mean).arg(std));
+		newRow << new QStandardItem(QString("%1 ~ %2").arg(Min).arg(Max));
+		//newRow << new QStandardItem(QString::number(Mean) + QString(" (") + QString::number(std) + QString(")"));
+		//newRow << new QStandardItem(QString::number(Min) + QString(" ~ ") + QString::number(Max));
+		qDebug() << scalingValue << Mean << std << Min << Max << QString("%1 (%2)").arg(Mean).arg(std) << endl;
 
-		}
-
-		//parentItem->child(0, 2)->setText(QString("%1").arg(Mean));
-		//parentItem->child(0, 3)->setText(QString("%1").arg(std));
-		//parentItem->child(0, 4)->setText(QString("%1").arg(Max));
-		//parentItem->child(0, 5)->setText(QString("%1").arg(Min));
 		//infoRow << new QStandardItem(QString("%1").arg(Mean));
 		//infoRow << new QStandardItem(QString("%1").arg(std));
 		//infoRow << new QStandardItem(QString("%1").arg(Max));
 		//infoRow << new QStandardItem(QString("%1").arg(Min));
-		//parentItem->appendRow(infoRow);
+		parentItem->appendRow(newRow);
 		//RoiInfo[0] = Area; RoiInfo[1] = Mean; RoiInfo[2] = std; RoiInfo[3] = Max; RoiInfo[4] = Min;
 		
 		//contour->GetCurrentRenderer()->AddViewProp(rep);
@@ -157,21 +141,21 @@ public:
 	}
 
 	vtkTracerCallback() : scalingValue(0), shiftValue(0){};
-	//QList<QStandardItem*>::iterator rowHead;
+
 	QStandardItem* parentItem;
 	QString roiName;
+	vtkCollection* RoiCllct;
 	//QList<QStandardItem *>* infoModel;
 
-	void initialize(float _scalingValue, float _shiftValue, const QString _text, QStandardItem* _parentItem)
+	void initialize(float _scalingValue, float _shiftValue, const QString _text, QStandardItem* _parentItem, vtkCollection* _RoiCllct)
 	{ 
 		scalingValue = _scalingValue; shiftValue = _shiftValue; parentItem = _parentItem;
-		roiName = _text;
+		roiName = _text; RoiCllct = _RoiCllct;
 		//cout << *rowHead << endl;
 	};
 protected:
 	float scalingValue;
 	float shiftValue;
-	//vtkContourWidget* contourWidget;
 };
 
 
@@ -198,16 +182,15 @@ void vtkRoiInteractor::initialize(vtkSmartPointer<vtkRenderWindowInteractor> iIn
 	//default value---none scaling
 	imageName = text;
 	qDebug() << "Initializing new vtk ROI at " << imageName << endl;;
-	vtkSmartPointer< vtkTracerCallback> traceCallback = vtkTracerCallback::New();
-	traceCallback->initialize(scalingPara[0], scalingPara[1], text, parentItem);
 
-	//cout << *RowHead << endl;
+	vtkSmartPointer< vtkTracerCallback> traceCallback = vtkTracerCallback::New();
+	traceCallback->initialize(scalingPara[0], scalingPara[1], text, parentItem, ThisRoiCllct);
 	//traceCallback->scalingValue = this->scalingPara[0];
 	//traceCallback->shiftValue = this->scalingPara[1];
 
 	//traceCallback->SetClientData();
 	interactor = iInt;
-	vtkSmartPointer<vtkContourWidget> newContourWidget = vtkSmartPointer<vtkContourWidget>::New();
+	newContourWidget = vtkSmartPointer<vtkContourWidget>::New();
 	newContourWidget->SetInteractor(interactor);
 	newContourWidget->FollowCursorOn();
 
@@ -227,57 +210,70 @@ void vtkRoiInteractor::initialize(vtkSmartPointer<vtkRenderWindowInteractor> iIn
 	//RoicloseCallback->SetClientData(&roiInfoRow);
 	//RoicloseCallback->SetCallback(RoicloseCallbackFunction);
 
+
 	newContourWidget->SetRepresentation(rep);
-	newContourWidget->ContinuousDrawOn();
+	newContourWidget->ContinuousDrawOff();
 	newContourWidget->On();
 	newContourWidget->AddObserver(vtkCommand::EndInteractionEvent, traceCallback);
 
-	iInt->AddObserver(vtkCommand::EndInteractionEvent,this, &vtkRoiInteractor::OnRightButtonDown);
+	//iInt->AddObserver(vtkCommand::EndInteractionEvent,this, &vtkRoiInteractor::OnRightButtonDown);
 	//std::cout << "in initialize: Area is " << traceCallback->RoiInfo[0] << endl;
 	//roiInfoRow += traceCallback->infoModel;		
 	/*QStandardItem* areaItem = roiInfoRow.at(0);
 	cout << "in initialize: Area is " << areaItem->text().toStdString() << endl;
 	cout << "contour Widget" << endl;*/
 
-	this->contourWidgetCollection = ThisRoiCllct;
-	this->contourWidgetCollection->AddItem(newContourWidget);
+	//this->contourWidgetCollection = ThisRoiCllct;
+	//this->contourWidgetCollection->AddItem(newContourWidget);
 }
 
+void vtkRoiInteractor::usePolydata(vtkSmartPointer<vtkRenderWindowInteractor> iInt, vtkPolyData* plydata)
+{
+	interactor = iInt;
+	newContourWidget = vtkSmartPointer<vtkContourWidget>::New();
+	newContourWidget->SetInteractor(interactor);
+	//newContourWidget->FollowCursorOn();
+
+	vtkOrientedGlyphContourRepresentation* rep = vtkOrientedGlyphContourRepresentation::New();
+	rep->GetLinesProperty()->SetColor(1, 1, 0);
+	rep->GetLinesProperty()->SetLineWidth(1.5);
+	vtkImageActor* imageActor = static_cast<myVtkInteractorStyleImage*>(iInt->GetInteractorStyle())->GetImageActor();
+	vtkImageActorPointPlacer* placer = vtkImageActorPointPlacer::New();
+	placer->SetImageActor(imageActor);
+	rep->SetPointPlacer(placer);
+	newContourWidget->ContinuousDrawOff();
+	newContourWidget->SetRepresentation(rep);
+	newContourWidget->On();
+	newContourWidget->Initialize(plydata,3);
+}
 //----------------------------------------------------------------------------
 void vtkRoiInteractor::RemoveWidgetIterm(vtkContourWidget* contour)
 {
-	//contour->SetEnabled(0);
-	//vtkContourWidget *self = reinterpret_cast<vtkContourWidget*>(contour);
-	//self->Initialize(NULL);
-
-	this->contourWidgetCollection->RemoveItem(contour);
-	contour->Delete();
-	qDebug() << "a contourWidget in " << imageName << "is deleted" << endl;
+	//this->contourWidgetCollection->RemoveItem(contour);
+	//contour->Delete();
+	//qDebug() << "a contourWidget in " << imageName << "is deleted" << endl;
 }
 
 void vtkRoiInteractor::OnRightButtonDown()
 {
-	int* clickPos = interactor->GetEventPosition();
-	int numberOfWidgets = this->contourWidgetCollection->GetNumberOfItems();
-	qDebug() << numberOfWidgets << " ROIs are in :" << imageName << endl;
+	//int* clickPos = interactor->GetEventPosition();
+	//int numberOfWidgets = this->contourWidgetCollection->GetNumberOfItems();
+	//qDebug() << numberOfWidgets << " ROIs are in :" << imageName << endl;
 
-	if (numberOfWidgets > 0)
-	{
-		for (int i = 0; i < numberOfWidgets; i++)
-		{
-			vtkContourWidget* contour = vtkContourWidget::SafeDownCast(this->contourWidgetCollection->GetItemAsObject(i));
-			vtkContourRepresentation* rep = contour->GetContourRepresentation();
+	//if (numberOfWidgets > 0)
+	//{
+	//	for (int i = 0; i < numberOfWidgets; i++)
+	//	{
+	//		vtkContourWidget* contour = vtkContourWidget::SafeDownCast(this->contourWidgetCollection->GetItemAsObject(i));
+	//		vtkContourRepresentation* rep = contour->GetContourRepresentation();
 
-			if (rep->SetActiveNodeToDisplayPosition(clickPos)) //rep->SetActiveNodeToDisplayPosition(clickPos)
-			{
-				this->RemoveWidgetIterm(contour);				
-				return;
-			}
-			//}
-		}
-	}
-	// forward event
-	//vtkInteractorStyleImage::OnRightButtonDown();
-
+	//		if (rep->SetActiveNodeToDisplayPosition(clickPos)) //rep->SetActiveNodeToDisplayPosition(clickPos)
+	//		{
+	//			this->RemoveWidgetIterm(contour);				
+	//			return;
+	//		}
+	//		//}
+	//	}
+	//}
 }
 vtkStandardNewMacro(vtkRoiInteractor);

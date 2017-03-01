@@ -24,6 +24,7 @@ class vtkImageActor;
 class vtkImageTracerWidget;
 class vtkContourWidget;
 class vtkCollection;
+class vtkPolyData;
 
 //class vtkRoiInteractor : public vtkInteractorObserver
 //{
@@ -75,11 +76,12 @@ public:
 	//void AddWidgetItem();
 	void RemoveWidgetIterm(vtkContourWidget* contour);
 
-	vtkCollection* contourWidgetCollection;
+	//vtkCollection* contourWidgetCollection;	
 
 public:
 	vtkRoiInteractor();
 	void initialize(vtkSmartPointer<vtkRenderWindowInteractor>, QStandardItem*, float*, const QString, vtkCollection*);
+	void usePolydata(vtkSmartPointer<vtkRenderWindowInteractor> , vtkPolyData* );
 	~vtkRoiInteractor();
 
 	QString imageName;
@@ -89,7 +91,7 @@ public:
 	//float scalingPara[2];
 
 protected:
-
+	vtkSmartPointer<vtkContourWidget> newContourWidget;
 	vtkSmartPointer<vtkRenderWindowInteractor> interactor;
 	void OnRightButtonDown();
 
