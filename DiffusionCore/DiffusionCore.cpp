@@ -265,8 +265,8 @@ void DiffusionCore::onCalc3D(QString directory)
 	}
 	qDebug() << Diff_ActiveWdw.size() << "windows are activated";;
 	
-	//QProgressDialog progressDialog(this);
-	//progressDialog.show();
+	progressDialog = new QProgressDialog(this);
+	progressDialog->show();
 	for (int i = 0; i < Diff_ActiveWdw.size(); ++i)
 	{
 		int buttonID = Diff_ActiveWdw.at(i);
@@ -288,11 +288,13 @@ void DiffusionCore::onCalc3D(QString directory)
 			//std::cout << "---------------------- export image:: mask vectorimage 00----------" << std::endl;
 			this->UpdateMaskVectorImage(m_DicomHelper, sliceIndex, this->m_MaskVectorImage);
 
-			//progressDialog.setValue(sliceIndex);
-			//progressDialog.setLabelText(tr("Calculating slice number %1 of %n...", 0, m_DicomHelper->imageDimensions[2]).arg(sliceIndex));
-
-			//if (progressDialog.wasCanceled())
-			//	break;
+			progressDialog->setValue(sliceIndex+1);
+			progressDialog->setMaximum(m_DicomHelper->imageDimensions[2]);
+			progressDialog->setMinimumDuration(1000);
+			progressDialog->setCancelButtonText(tr("OK"));
+			progressDialog->setLabelText(tr("Calculating slice number %1 of %n...", 0, m_DicomHelper->imageDimensions[2]).arg(sliceIndex+1));
+			if (progressDialog->wasCanceled())
+				break;
 
 
 			//std::cout << "---------------------- export image:: mask vectorimage 01----------" << std::endl;
@@ -392,6 +394,7 @@ void DiffusionCore::onCalc3D(QString directory)
 	////restore m_MaskVectorImage to before imageExport State
 	//std::cout << "m_CurrentSlice - =====" << m_CurrentSlice << std::endl;
 	this->UpdateMaskVectorImage(m_DicomHelper, m_CurrentSlice, this->m_MaskVectorImage);
+	emit signalSaveDcmComplete(true);
 	//qDebug() << image3Dstorage.value(0)->GetDimensions()[2];
 }
 
@@ -660,7 +663,7 @@ void DiffusionCore::CDWICalculator(vtkSmartPointer <vtkImageData> imageData, flo
 	typedef itk::RescaleIntensityImageFilter < DiffusionCalculatorImageType, DiffusionCalculatorImageType> RescaleIntensityImageType;
 	RescaleIntensityImageType::Pointer rescaleFilter = RescaleIntensityImageType::New();
 	rescaleFilter->SetInput(vectorImageToImageFilter->GetOutput());
-	rescaleFilter->SetOutputMaximum(255.0);
+	rescaleFilter->SetOutputMaximum(4095.0);
 	rescaleFilter->SetOutputMinimum(0.0);
 	rescaleFilter->Update();
 	//std::cout << "rescaleFilter: inputMaximum = " << rescaleFilter->GetInputMaximum() << std::endl;
@@ -1176,6 +1179,7 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, int currentSli
 
 	//itk version of DeepCopy	
 	_MaskVectorImage->SetSpacing(maskFilter->GetOutput()->GetSpacing());
+	qDebug() << "vector image spacing = " << maskFilter->GetOutput()->GetSpacing()[0] << "-" << maskFilter->GetOutput()->GetSpacing()[1];
 	_MaskVectorImage->SetOrigin(maskFilter->GetOutput()->GetOrigin());
 	_MaskVectorImage->SetDirection(maskFilter->GetOutput()->GetDirection());
 	_MaskVectorImage->SetRegions(maskFilter->GetOutput()->GetLargestPossibleRegion());

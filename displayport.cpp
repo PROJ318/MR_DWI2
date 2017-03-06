@@ -81,8 +81,10 @@ void DisplayPort::insertWindow(QWidget* wdgt, const QString imageLabel)
 
 	wdwlayout->addWidget(wdgt);
 	wdw->show(); wdgt->show();
-	wdgt->installEventFilter(this);
-
+	if (imageLabel.right(5) != QString("Chart"))
+	{
+		wdgt->installEventFilter(this);
+	}
 	this->gridlayout->update();
 }
 
@@ -260,14 +262,22 @@ void DisplayPort::removeWindow(const QString imageLabel)
 		QWidget * WidgetT = ItemT->widget();
 
 		if (WidgetF != NULL) {
+			//qDebug() << "moving widget";
 			this->gridlayout->addWidget(WidgetF, rowT, colT); //move F to T pos.
 		}
 		if (WidgetT != NULL) {
 
+			//qDebug() << "deleting widget";
 			//WidgetT->removeEventFilter(this);						
 			QFrame * frameWidget = static_cast<QFrame* >(WidgetT);
-			QWidget * curWidget = frameWidget->childAt(10, 10);
-			curWidget->removeEventFilter(this);
+			QWidget * curWidget = frameWidget->childAt(30, 30);
+			if (curWidget == NULL){ qDebug() << "Not Getting chart Widget"; }
+
+			if (imageLabel.right(5) != QString("Chart"))
+			{				
+				curWidget->removeEventFilter(this);
+			}
+			//else{ qDebug() << "removing Chart widget"; }
 
 			this->gridlayout->removeWidget(WidgetT);
 			WidgetT->setParent(NULL);
@@ -308,7 +318,7 @@ void DisplayPort::onLabelWdw(const QString imageLabel)
 	frame->setLineWidth(3);
 	frame->setMidLineWidth(0);
 	frame->setFrameStyle(QFrame::Box | QFrame::Plain);
-	frame->setStyleSheet("border-color: rgb(38, 213, 169);");
+	frame->setStyleSheet("border: 1px solid rgb(233, 89, 89);");
 	//frame->setFrameShape(QFrame::Box);
 	//frame->setFrameShadow(QFrame::Raised);
 }
@@ -320,6 +330,6 @@ void DisplayPort::onRemoveLabelWdw(const QString imageLabel)
 	index2Pos(index, row, col);
 	QLayoutItem *Item = this->gridlayout->itemAtPosition(row, col);
 	QFrame * frame = static_cast<QFrame* >(Item->widget());
-
-	frame->setFrameShape(QFrame::NoFrame);	
+	frame->setFrameStyle(QFrame::StyledPanel | QFrame::Plain);
+	frame->setStyleSheet("border: 2px transparent rgb(233, 89, 89);");
 }

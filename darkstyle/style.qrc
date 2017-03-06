@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/qss_icons">
+	    <file>rc/IMAgeenGINE.png</file>	
 	    <file>rc/newROI.png</file>	
 	    <file>rc/editROI.png</file>	
 		<file>rc/deleteROI.png</file>	

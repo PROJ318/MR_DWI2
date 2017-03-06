@@ -21,6 +21,7 @@
 #include "qevent.h"
 #include <QtTest/QtTest>
 #include <QInputDialog>
+#include <QtCharts>
 
 // CTK
 #include <ctkFileDialog.h>
@@ -48,6 +49,7 @@
 #include <vtkAssemblyPath.h>
 #include <vtkCornerAnnotation.h>
 #include <vtkContourWidget.h>
+#include <vtkContourRepresentation.h>
 #include <vtkMedicalImageProperties.h>
 #include <vtkWindowToImageFilter.h>
 #include <vtkLinearExtrusionFilter.h>
@@ -66,7 +68,6 @@
 #include <QVTKInteractor.h>
 #include <vtkImageProperty.h>
 #include <vtkCollection.h>
-#include <vtkOrientedGlyphContourRepresentation.h>
 
 
 bool cmp(std::pair<float, int> p1, std::pair<float, int> p2)
@@ -75,6 +76,7 @@ bool cmp(std::pair<float, int> p1, std::pair<float, int> p2)
 	return 0;
 
 }
+
 //vtkImageActor* getImageActorFromRender(vtkRenderer* inputRenderer)
 //{
 //	if (!inputRenderer)
@@ -117,17 +119,19 @@ MainWindow::MainWindow(QWidget *parent) :
 	DicomUI = new DicomModule(this);
 	DicomUI->hide();
 
-	//Set Window Style
+	////Set Window Style
 	//QFile file(":/qdarkstyle/style.qss");
 	//file.open(QFile::ReadOnly);
 	//QString styleSheet = QLatin1String(file.readAll());
 	//setStyleSheet(styleSheet);
-
+	
 	this->ui = new Ui::MainWindow;
 	this->ui->setupUi(this);
 	showMaximized();
 
-	roiInfoModel = new QStandardItemModel;
+	ui->ViewFrame->setFocus();
+	//ui->chartROIBtn->setDisabled(true);
+	roiInfoModel = new QStandardItemModel;	
 	this->ui->statisBrowser->setModel(roiInfoModel);
 
 	connect(ui->FileButton, SIGNAL(clicked()), this, SLOT(onStartdicom()));
@@ -140,14 +144,15 @@ MainWindow::MainWindow(QWidget *parent) :
 		this, SLOT(onProcButtonClicked(bool, vtkSmartPointer <vtkImageData>, const QString, const float, const float)));
 	connect(this, SIGNAL(SignalSetSourceImage(DicomHelper*,int)), ui->diffusionModule, SLOT(onSetSourceImage(DicomHelper*,int)));
 	connect(this, SIGNAL(SignalRecalcAll(int)), ui->diffusionModule, SLOT(onRecalcAll(int)));
+	connect(ui->diffusionModule, SIGNAL(signalSaveDcmComplete(bool)), this, SLOT(OnTaskComplete(bool)));
 
 	//ImageInfo Module Connections
 	connect(ui->pickingBtn, SIGNAL(toggled(bool)), this, SLOT(onCursorPickValue(bool)));
 
 	//ROI Module Connections	
 	connect(ui->newROI, SIGNAL(clicked()), this, SLOT(addROI()));
-	connect(ui->statisBrowser, SIGNAL(clicked(QModelIndex )), this, SLOT(onClickTreeView(QModelIndex )));
-
+	connect(ui->statisBrowser, SIGNAL(clicked(QModelIndex)), this, SLOT(onClickTreeView(QModelIndex)));
+	connect(ui->chartROIBtn, SIGNAL(toggled(bool)), this, SLOT(onAddRoiChart(bool)));
 	//View Frame Connections
 	connect(ui->ViewFrame, SIGNAL(signalWheel(const QString, int, Qt::Orientation)), this, SLOT(onWheelWdw(const QString, int, Qt::Orientation)));
 	connect(ui->ViewFrame, SIGNAL(signalFocusIn(const QString)), this, SLOT(onFocusWdw(const QString)));
@@ -156,6 +161,8 @@ MainWindow::MainWindow(QWidget *parent) :
 	connect(ui->ViewFrame, SIGNAL(signalKeyEvent(QKeyEvent *)), this, SLOT(onKeyEvent(QKeyEvent *)));
 	connect(ui->ViewFrame, SIGNAL(signalResizeEvent(const QString, const QSize, const QSize)), this, SLOT(onWdwResizeEvent(const QString, const QSize, const QSize)));
 
+	//Message
+	
 	//connect(ui->diffusionModule, SIGNAL(SignalDicomLoaded(bool)), this, SLOT(onDicomLoaded(bool)));
 	//connect(DicomUI, SIGNAL(SignalDicomToDataManager(QStringList)), ui->diffusionModule, SLOT(OnImageFilesLoaded(QStringList)));
 	//connect(ui->DicomUI, SIGNAL(SignalStartDicomImport(QStringList)), ui->internalDataWidget, SLOT(OnStartDicomImport(QStringList)));
@@ -276,13 +283,20 @@ void MainWindow::OnImageFilesLoaded(const QStringList& fileLists)
 	//emit SignalDicomLoaded(true);
 	DicomUI->hide();
 	//std::cout << "srcimage viewer" << std::endl;
-	DisplayDicomInfo(this->sourceImage);
+	//clearing the roi2D hash.
+	Roi2DHash.clear();
+	//roiInfoModel = new QStandardItemModel;
+	//ui->chartROIBtn->setDisabled(true);
 
-	//vtkSmartPointer<vtkImageData> currentSourceImage = vtkSmartPointer<vtkImageData>::New();
-	//this->ComputeCurrentSourceImage(m_SourceImageCurrentSlice, currentSourceImage);
-	//ImageViewer2D(currentSourceImage, vtkWindow, orgLabel.toStdString());
-
-	emit SignalSetSourceImage(m_DicomHelper, m_SourceImageCurrentSlice);
+	info = new QMessageBox(this);
+	info->setWindowTitle(tr("Perform Registration?"));
+	info->setText(tr("[Anatomy: Head][Protocol: Diffusion] is detected, perform registration automatically?"));
+	info->setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+	int ret = info->exec();
+	if (ret == QMessageBox::Ok){
+		DisplayDicomInfo(this->sourceImage);
+		emit SignalSetSourceImage(m_DicomHelper, m_SourceImageCurrentSlice);
+	}
 }
 
 void MainWindow::SortingSourceImage()
@@ -516,22 +530,49 @@ void MainWindow::ShareWindowEvent()
 
 	emit SignalRecalcAll(m_SourceImageCurrentSlice);
 
-	if (RoiCollection.contains(m_SourceImageCurrentSlice))
+	QStandardItem *root = roiInfoModel->invisibleRootItem();
+	QList<QString> roiNames = Roi2DHash.keys();
+	foreach(QString thisRoiName, roiNames)
 	{
-		qDebug() << RoiCollection.value(m_SourceImageCurrentSlice)->GetNumberOfItems() << "is stored in slice: " << m_SourceImageCurrentSlice << endl;
+		QStandardItem * entryPoint;
 
-		QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
-		QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
-		while (wdwIter.hasNext()) {
-			wdwIter.next();
-			QVTKWidget *thisWindow = static_cast <QVTKWidget*> (wdwIter.value());
-			qDebug() << "Retrieve ROI on window " << wdwIter.key() << "at slice " << m_SourceImageCurrentSlice << endl;
-			RoiCollection.value(m_SourceImageCurrentSlice)->InitTraversal();
-			for (vtkIdType i = 0; i < RoiCollection.value(m_SourceImageCurrentSlice)->GetNumberOfItems(); i++)
+		for (int i = 0; i < root->rowCount(); i++)
+		{
+			if (thisRoiName == root->child(i)->text())
 			{
-				vtkSmartPointer<vtkPolyData> plydata = vtkPolyData::SafeDownCast(RoiCollection.value(m_SourceImageCurrentSlice)->GetItemAsObject(i));
+				entryPoint = root->child(i);
+			}
+		}
+
+		if (Roi2DHash[thisRoiName].contains(m_SourceImageCurrentSlice))
+		{
+			QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
+			QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
+			while (wdwIter.hasNext())
+			{
+				wdwIter.next();
+				if (!ActiveWdw.contains(wdwIter.key()))
+				{
+					ActiveWdw << wdwIter.key();
+					ui->ViewFrame->onLabelWdw(wdwIter.key());
+				}
+			}
+
+			qDebug() << thisRoiName << " is stored in this slice: " << m_SourceImageCurrentSlice << endl;
+
+			foreach(QString wdwName, ActiveWdw)
+			{
+				QVTKWidget *thisWindow = static_cast <QVTKWidget*> (ui->ViewFrame->getWindow(wdwName));
+				float scalingPara[2];
+				scalingPara[0] = ScalingParameters.value(wdwName + QString("_s"));
+				scalingPara[1] = ScalingParameters.value(wdwName + QString("_k"));
+				//qDebug() << "Retrieve ROI" << thisRoiName << "on window " << wdwName << "at slice " << m_SourceImageCurrentSlice << endl;
+				vtkContourRepresentation* contourRep = static_cast<vtkContourRepresentation*>(Roi2DHash[thisRoiName].value(m_SourceImageCurrentSlice));
+				//qDebug() << "number of vertices = " << contourRep->GetNumberOfNodes();
 				vtkRoiInteractor* RoiInterObs = new vtkRoiInteractor;
-				RoiInterObs->usePolydata(thisWindow->GetRenderWindow()->GetInteractor(), plydata);
+				RoiInterObs->useContourRep(thisWindow->GetRenderWindow()->GetInteractor(), contourRep, entryPoint, scalingPara, wdwName,
+					&Roi2DHash, m_SourceImageCurrentSlice);
+				thisWindow->GetRenderWindow()->Render();
 			}
 		}
 	}
@@ -655,10 +696,11 @@ void MainWindow::onCursorPickValue(bool _istoggled)
 			}
 			//qDebug() << "Connecting" << qimageLabel << ScalingParameters.value(QString("ADC_s"));;
 			thisWindow->setAutomaticImageCacheEnabled(true);
-			float curScalPara[2];
+
 			curScalPara[0] = ScalingParameters.value(wdwIter.key() + QString("_s"));
 			curScalPara[1] = ScalingParameters.value(wdwIter.key() + QString("_k"));
-			vtkSmartPointer<vtkEventQtSlotConnect> Connections = vtkEventQtSlotConnect::New();
+
+			Connections = vtkEventQtSlotConnect::New();
 			//std::cout << curScalPara[0] << "-" << curScalPara[1] << " ?= ";
 			Connections->Connect(thisInteractor, vtkCommand::MouseMoveEvent,
 				this, SLOT(onDisplayPickValue(vtkObject*, unsigned long, void*, void*, vtkCommand*)), curScalPara);
@@ -795,8 +837,9 @@ void MainWindow::onDisplayPickValue(vtkObject* obj, unsigned long, void* client_
 
 void MainWindow::onClickTreeView(const QModelIndex &index)
 {
-	QStandardItem *item = roiInfoModel->itemFromIndex(index);
-	qDebug() << "User clicked item at row: " << index.row() << " col: " << index.column() << "is " << item->text() << "it has" << item->rowCount() << endl;
+	curRoiDataindex = index;
+	QStandardItem *item = roiInfoModel->itemFromIndex(curRoiDataindex);
+	qDebug() << "User clicked item at row: " << curRoiDataindex.row() << " col: " << curRoiDataindex.column() << "is " << item->text() << "it has" << item->rowCount() << endl;
 	
 	if (RoiCollection.contains(m_SourceImageCurrentSlice))
 	{		
@@ -806,6 +849,7 @@ void MainWindow::onClickTreeView(const QModelIndex &index)
 	{
 		qDebug() << "No ROIs at slice " << m_SourceImageCurrentSlice << endl;
 	}
+	//ui->chartROIBtn->setEnabled(true);
 }
 
 void MainWindow::onFocusWdw(const QString widgetName)
@@ -917,33 +961,43 @@ void MainWindow::debug(QMouseEvent* e)
 
 void MainWindow::addROI() //bool _istoggled
 {
-	bool okFlag,dupFlag;
+	bool okFlag(false),dupFlag(true);
+	int roimode(-1); //roimode: 0:new, 1:append, 2:edit, -1:error;
+
 	QString text = QInputDialog::getText(this, tr("QInputDialog::getText()"),
 		tr("ROI name:"), QLineEdit::Normal, tr("ROI1"), &okFlag);
 	QStandardItem *root = roiInfoModel->invisibleRootItem();
 	if (okFlag && !text.isEmpty())
 	{
-		//const QString RoiName = text;		
-		for (int i = 0; i < root->rowCount(); i++)
-		{
-			if (text == root->child(i)->text())
-			{
-				qDebug() << "Duplicate ROI name" << endl;
-				dupFlag = false;
+		////const QString RoiName = text;		
+		//for (int i = 0; i < root->rowCount(); i++)
+		//{
+		//	if (text == root->child(i)->text())
+		//	{
+		//		//If ROI of the same name existing on this slice.
+		//		qDebug() << "Duplicate ROI name" << endl;
+		//		//todo: if ROI of the same name not existing on thie slice, new 
+		//		dupFlag = false;
+		//	}
+		//}
+		
+		if (Roi2DHash.contains(text)){
+			if (Roi2DHash[text].contains(m_SourceImageCurrentSlice)){
+				roimode = -1; // return.
 			}
+			else{
+				roimode = 1; //append roi
+			}
+		}else{
+			roimode = 0; //new roi
 		}
+
 	}
 
-	if (dupFlag && !text.isEmpty())
+	if (roimode >= 0)
 	{
-		qDebug() << "Adding new ROI " << endl;
-		QList<QStandardItem *> newROIRow;
-		newROIRow << new QStandardItem(text) << new QStandardItem("Area") << new QStandardItem("Value") << new QStandardItem("Range");
-		root->appendRow(newROIRow);
+		qDebug() << "drawing new ROI " << endl;
 
-		//1. Overide all windows to be active
-		QList < QString >  temp;
-		foreach(QString s, ActiveWdw){ temp << s; }
 		QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
 		QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
 		while (wdwIter.hasNext())
@@ -952,28 +1006,32 @@ void MainWindow::addROI() //bool _istoggled
 			if (!ActiveWdw.contains(wdwIter.key()))
 			{
 				ActiveWdw << wdwIter.key();
+				ui->ViewFrame->onLabelWdw(wdwIter.key());
 			}
-		}
-		qDebug() << ActiveWdw << endl;
-
-		//2. Add a new Polydata into vtkcollection of this slice
-		vtkCollection* thisRoiCllct;
-		if (RoiCollection.contains(m_SourceImageCurrentSlice))
+		}		
+		
+		QStandardItem * entryPoint;
+		if (roimode > 0) //apend: 
 		{
+			//retrieving root of existing ROI tree;
+			for (int i = 0; i < root->rowCount(); i++)
+			{
+				if (text == root->child(i)->text())
+				{
+					entryPoint = root->child(i);
+				}
+			}
 
-			thisRoiCllct = RoiCollection.value(m_SourceImageCurrentSlice);
-			qDebug() << "Add ROI to existing ROI collections at slice " << m_SourceImageCurrentSlice
-				<< "ROI number = " << thisRoiCllct->GetNumberOfItems() << endl;
 		}
-		else
-		{
-			thisRoiCllct = vtkCollection::New();
-			qDebug() << "Creating ROIs at slice " << m_SourceImageCurrentSlice << endl;
-
+		else //new: 
+		{ 
+			//creating ROI tree,return its root;
+			QList<QStandardItem *> newROIRow;
+			newROIRow << new QStandardItem(text) << new QStandardItem("Volumn") << new QStandardItem("Value") << new QStandardItem("Range");
+			root->appendRow(newROIRow);
+			entryPoint = newROIRow.first();
 		}
-		RoiCollection.insert(m_SourceImageCurrentSlice, thisRoiCllct);
-		//roiCurrentSlc.reserve(currentWindows.capacity);
-		//QHashIterator<const QString, vtkCollection* > roiIter(roiCurrentSlc);
+		
 		foreach(QString wdwName, ActiveWdw)
 		{
 			QVTKWidget *thisWindow = static_cast <QVTKWidget*> (ui->ViewFrame->getWindow(wdwName));
@@ -984,28 +1042,18 @@ void MainWindow::addROI() //bool _istoggled
 			qDebug() << "slope intercept = " << scalingPara[0] << scalingPara[1] << wdwName;
 			vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
 			vtkRoiInteractor* RoiInterObs = new vtkRoiInteractor;
-			RoiInterObs->initialize(renInter, newROIRow.first(), scalingPara, wdwName, thisRoiCllct);
+			RoiInterObs->initialize(renInter, entryPoint, scalingPara, wdwName, &Roi2DHash, roimode, m_SourceImageCurrentSlice);
 		}
-
-		//qDebug() << "after roi drawing, rois in this slice = " << thisRoiCllct->GetNumberOfItems();
-		//if (thisRoiCllct->GetNumberOfItems() > 0)
-		//{
-		//	RoiCollection.insert(m_SourceImageCurrentSlice, thisRoiCllct);
-		//}
-		//else
-		//{
-		//	thisRoiCllct->Delete();
-		//}
-
-		//3. Overide all windows to be active
-		//foreach(QString s, ActiveWdw)
-		//{
-		//	if (!temp.contains(s)){
-		//		ActiveWdw.removeAll(s);
-		//	}
-		//}
-		//qDebug() << ActiveWdw;
 	}
+}
+
+void MainWindow::removeROI()
+{
+	//ROI removal involves actions:
+	//1. loopOver all int QHash<int, vtkCollection*> RoiCollection; remove rep from vtkcollection;
+	//2. remove row in model 
+	//3. remove actors in current windows.	
+
 }
 
 void MainWindow::onWdwResizeEvent(const QString widgetName, const QSize oldsize, const QSize cursize)
@@ -1076,11 +1124,11 @@ void MainWindow::onExportImage()
 		}
 		qDebug() << debugOut;
 
-		QMessageBox info;
-		info.setWindowTitle(tr("Export Dicom"));
-		info.setText(debugOut);
-		info.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
-		int ret = info.exec();
+		info = new QMessageBox(this);
+		info->setWindowTitle(tr("Export Dicom"));
+		info->setText(debugOut);
+		info->setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+		int ret = info->exec();
 
 		if (ret == QMessageBox::Ok)
 		{
@@ -1098,10 +1146,64 @@ void MainWindow::onExportImage()
 
 	}
 	else{
-		QMessageBox info;
-		info.setText("You have to select an window for export.");
-		info.exec();
+		info = new QMessageBox(this);
+		info->setText("You have to select an window for export.");
+		info->exec();
 	}
 }
 
+void MainWindow::onAddRoiChart(bool _toggle)
+{
+	if (_toggle)
+	{		
+		QStandardItem *hookitem;
+		if (curRoiDataindex.isValid())
+		{
+			hookitem = roiInfoModel->itemFromIndex(curRoiDataindex);
+		}
+		else{
+			hookitem = roiInfoModel->invisibleRootItem();
+		}
+		QList<QBarSet* > barsets;
+		QBarSeries *series = new QBarSeries();
+		QList<float> stdsets;
+		for (int i = 0; i < hookitem->rowCount(); i++)
+		{
+			QBarSet *set = new QBarSet(hookitem->child(i,0)->text());
+			QString valueTxt = hookitem->child(i, 2)->text();
+			float value = valueTxt.section(" (", 0, 0).toFloat();
+			float std = valueTxt.section("(", 1, 1).section(")", 0, 0).toFloat();
+			*set << value;
+			series->append(set);			
+			stdsets << std;
+		}
+		QChart *barchart = new QChart();
+		barchart->addSeries(series);
+		barchart->setTitle(hookitem->text());
+		barchart->setAnimationOptions(QChart::SeriesAnimations);
+		barchart->legend()->setAlignment(Qt::AlignBottom);
+		barchart->setTheme(QChart::ChartThemeDark);
+		barchart->createDefaultAxes();
+		QBarCategoryAxis *axis = new QBarCategoryAxis();
+		axis->append(QString("Mean"));
+		QChartView *chartView = new QChartView(barchart);
+		chartView->setRenderHint(QPainter::Antialiasing);
 
+		ui->ViewFrame->insertWindow(chartView, QString("RoiBarChart"));
+	}
+	else
+	{
+		ui->ViewFrame->removeWindow(QString("RoiBarChart"));
+	}
+
+
+}
+
+void MainWindow::OnTaskComplete(bool complete)
+{
+	info = new QMessageBox(this);
+	info->setWindowTitle(tr("Task"));
+	info->setText(tr("Task complete"));
+	info->setStandardButtons(QMessageBox::Ok);
+	int ret = info->exec();
+}

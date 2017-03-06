@@ -67,6 +67,6 @@ qt5_add_resources(QRC_Srcs ${QRCs} )
 
 # CMAKE_AUTOMOC in ON so the MocHdrs will be automatically wrapped.
 add_executable(MR_Diffusion ${Srcs} ${Hdrs} ${UI_Srcs} ${MOC_Hdrs} ${QRC_Srcs})
-qt5_use_modules(MR_Diffusion Core Gui Widgets Sql Xml UiTools XmlPatterns Concurrent Test)
+qt5_use_modules(MR_Diffusion Core Gui Widgets Sql Xml UiTools XmlPatterns Concurrent Test Charts)
 target_link_libraries(MR_Diffusion ${VTK_LIBRARIES} ${QT_LIBRARIES}  DicomWidget DiffusionCore Utility CTKWidgets CTKDICOMWidgets)
 

@@ -12,7 +12,7 @@
 //#include <QMessageBox>
 //#include <qdebug.h>
 #include <QMainWindow>
-#include <qmap.h>
+#include <QStandardItemModel>
 
 //VTK lib
 #include <vtkSmartPointer.h>
@@ -31,6 +31,9 @@ class vtkCamera;
 class DicomHelper;
 class QStandardItemModel;
 class vtkCollection;
+class vtkEventQtSlotConnect;
+class vtkContourRepresentation;
+class QMessageBox;
 
 class MainWindow : public QMainWindow
 {
@@ -61,6 +64,7 @@ signals:
 
 
 	protected slots :
+
 	void onStartdicom();
 	//void onDicomLoaded(bool);
 	void onProcButtonClicked(bool, vtkSmartPointer <vtkImageData>, const QString, const float, const float);
@@ -69,10 +73,16 @@ signals:
 
 	void OnImageFilesLoaded(const QStringList& fileLists);
 
+	void OnTaskComplete(bool);
 	///// @brief
-	///// In this slot, change the interactor of qvtkwindows to ROI drawing.
+	///// In this slot, add ROI drawing.
 	///// 
 	void addROI();//bool toggle
+
+	///// @brief
+	///// In this slot, remove ROI drawing.
+	///// 
+	void removeROI();
 
 	///// @brief
 	///// In this slot, change the interactor of qvtkwindows to pixel picker.
@@ -82,9 +92,9 @@ signals:
 	///// @brief
 	///// In this slot, change the interactor of qvtkwindows to pixel picker.
 	///// 
-	void onDisplayPickValue(vtkObject* obj, unsigned long,
-		void* client_data, void*,
-		vtkCommand * command);
+	void onDisplayPickValue(vtkObject* , unsigned long,
+		void* , void*,
+		vtkCommand * );
 
 	///// @brief
 	///// In this slot, react to clicking a item in the treeview.
@@ -117,6 +127,7 @@ signals:
 
 	void onExportImage();
 
+	void onAddRoiChart(bool);
 	//void OnStartDicomExport(QString directory);
 
 protected:
@@ -138,17 +149,20 @@ private:
 
 	QHash< const QString, float >  ScalingParameters;
 	QHash<int, vtkCollection*> RoiCollection;
+
+	QHash<QString, QHash<int, vtkContourRepresentation*> > Roi2DHash;
 	QList < QString >  ActiveWdw;
 
+	vtkEventQtSlotConnect* Connections;
 	//QHash< const QString, vtkSmartPointer<vtkImageData> >  image3Dstorage;
 
 	Ui::MainWindow *ui;
 	DicomModule* DicomUI;
+	QMessageBox* info;
 	//ctkFileDialog* ExportDialog;
 	//DisplayPort* ui->ViewFrame;
 
 	QStandardItemModel *roiInfoModel;
-
 	DicomHelper* m_DicomHelper;//initialization? 
 	vtkSmartPointer < vtkImageData > sourceImage;
 
@@ -156,11 +170,13 @@ private:
 	
 	int m_SourceImageCurrentSlice;
 	int m_SourceImageMaxSlice;
-	int m_SourceImageMinSlice;	
+	int m_SourceImageMinSlice;
 
 	double m_MaskThreshold;
 	double m_ComputedBValue;
 
+	float curScalPara[2];
+	QModelIndex curRoiDataindex;
 };
 
 #endif // MAINWINDOW_H

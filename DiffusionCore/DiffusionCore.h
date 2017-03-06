@@ -61,7 +61,7 @@ class vtkRenderWindowInteractor;
 class DisplayPort;
 class QGroupBox;
 class QButtonGroup;
-
+class QProgressDialog;
 /**
 * \brief DiffusionCore is a QWidget providing functionality for diffusion weighted image calculation.
 *
@@ -115,7 +115,7 @@ signals:
 	void SignalTestButtonFired(bool _istoggled, vtkSmartPointer <vtkImageData>, QString, float , float );
 
 	void signal3DImage(vtkSmartPointer <vtkImageData>, QString);
-
+	void signalSaveDcmComplete(bool);
 	public slots:
 
 	/////// @brief 
@@ -219,7 +219,7 @@ protected:
 	double m_ComputedBValue;
 
 	QButtonGroup* ButtonTable; // A QButtonGroup to store all algorithm Buttons;
-
+	QProgressDialog* progressDialog;
 	QList<int> Diff_ActiveWdw; // This should be synchronising to mainwindow activeWDW;
 };
 
