@@ -14,55 +14,88 @@
    <string>Form</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="leftMargin">
+    <number>1</number>
+   </property>
+   <property name="topMargin">
+    <number>1</number>
+   </property>
+   <property name="rightMargin">
+    <number>1</number>
+   </property>
+   <property name="bottomMargin">
+    <number>1</number>
+   </property>
    <item>
-    <widget class="QGroupBox" name="localFilesGroupBox">
-     <property name="title">
-      <string>Local Dicom Storage</string>
-     </property>
+    <widget class="QWidget" name="localFilesWidget" native="true">
      <layout class="QVBoxLayout" name="verticalLayout_11">
       <property name="leftMargin">
-       <number>12</number>
+       <number>0</number>
       </property>
       <property name="topMargin">
-       <number>12</number>
+       <number>0</number>
       </property>
       <property name="rightMargin">
-       <number>12</number>
+       <number>0</number>
       </property>
       <property name="bottomMargin">
-       <number>12</number>
+       <number>0</number>
       </property>
       <item>
-       <widget class="QFrame" name="frame">
+       <widget class="QWidget" name="widget" native="true">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Sunken</enum>
-        </property>
         <layout class="QHBoxLayout" name="horizontalLayout_5">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
          <item>
           <widget class="QPushButton" name="viewInternalDataButton">
            <property name="enabled">
             <bool>false</bool>
            </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>40</width>
+             <height>40</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>40</width>
+             <height>40</height>
+            </size>
+           </property>
            <property name="text">
-            <string>View</string>
+            <string/>
            </property>
            <property name="icon">
-            <iconset resource="../resources/MR_DWI.qrc">
-             <normaloff>:/icons/viewIcon.png</normaloff>:/icons/viewIcon.png</iconset>
+            <iconset resource="../darkstyle/style.qrc">
+             <normaloff>:/qss_icons/rc/startProc.png</normaloff>:/qss_icons/rc/startProc.png</iconset>
            </property>
            <property name="iconSize">
             <size>
-             <width>16</width>
-             <height>20</height>
+             <width>30</width>
+             <height>32</height>
             </size>
            </property>
           </widget>
@@ -72,12 +105,37 @@
            <property name="enabled">
             <bool>true</bool>
            </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>40</width>
+             <height>40</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>40</width>
+             <height>40</height>
+            </size>
+           </property>
            <property name="text">
-            <string>Delete</string>
+            <string/>
            </property>
            <property name="icon">
             <iconset>
-             <normaloff>:/icons/Remove_48.png</normaloff>:/icons/Remove_48.png</iconset>
+             <normalon>:/qss_icons/rc/delete.png</normalon>
+            </iconset>
+           </property>
+           <property name="iconSize">
+            <size>
+             <width>30</width>
+             <height>30</height>
+            </size>
            </property>
           </widget>
          </item>
@@ -130,7 +188,7 @@
   </customwidget>
  </customwidgets>
  <resources>
-  <include location="../resources/MR_DWI.qrc"/>
+  <include location="../darkstyle/style.qrc"/>
  </resources>
  <connections/>
 </ui>

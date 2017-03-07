@@ -1,5 +1,12 @@
 <RCC>
     <qresource prefix="/qss_icons">
+		<file>rc/cloud.png</file>
+		<file>rc/delete.png</file>
+		<file>rc/disk.png</file>
+		<file>rc/import.png</file>
+		<file>rc/scandirectory.png</file>
+		<file>rc/startProc.png</file>
+		<file>rc/usb.png</file>
 	    <file>rc/chart.png</file>	
 		<file>rc/chart-line.png</file>	
 	    <file>rc/IMAgeenGINE.png</file>	

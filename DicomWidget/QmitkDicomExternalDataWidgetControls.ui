@@ -14,14 +14,35 @@
    <string>Form</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="leftMargin">
+    <number>1</number>
+   </property>
+   <property name="topMargin">
+    <number>1</number>
+   </property>
+   <property name="rightMargin">
+    <number>1</number>
+   </property>
+   <property name="bottomMargin">
+    <number>1</number>
+   </property>
    <item>
-    <widget class="QGroupBox" name="externalFilesGroupBox">
-     <property name="title">
-      <string>External Dicom Data</string>
-     </property>
+    <widget class="QWidget" name="externalFilesWidget" native="true">
      <layout class="QVBoxLayout" name="verticalLayout_10">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
       <item>
-       <widget class="QFrame" name="itemOperationsFrame">
+       <widget class="QWidget" name="itemOperationsWidget" native="true">
         <property name="enabled">
          <bool>true</bool>
         </property>
@@ -31,21 +52,57 @@
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
-        <property name="frameShape">
-         <enum>QFrame::NoFrame</enum>
-        </property>
-        <property name="frameShadow">
-         <enum>QFrame::Sunken</enum>
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>40</height>
+         </size>
         </property>
         <layout class="QHBoxLayout" name="horizontalLayout_5">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
          <item>
           <widget class="QPushButton" name="directoryButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>40</width>
+             <height>40</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>40</width>
+             <height>40</height>
+            </size>
+           </property>
            <property name="text">
-            <string>Scan directory</string>
+            <string/>
            </property>
            <property name="icon">
-            <iconset>
-             <normaloff>:/icons/folder_32.png</normaloff>:/icons/folder_32.png</iconset>
+            <iconset resource="../darkstyle/style.qrc">
+             <normaloff>:/qss_icons/rc/scandirectory.png</normaloff>:/qss_icons/rc/scandirectory.png</iconset>
+           </property>
+           <property name="iconSize">
+            <size>
+             <width>30</width>
+             <height>30</height>
+            </size>
            </property>
           </widget>
          </item>
@@ -54,12 +111,36 @@
            <property name="enabled">
             <bool>true</bool>
            </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>40</width>
+             <height>40</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>40</width>
+             <height>40</height>
+            </size>
+           </property>
            <property name="text">
-            <string>Add to local storage</string>
+            <string/>
            </property>
            <property name="icon">
-            <iconset>
-             <normaloff>:/icons/import_32.png</normaloff>:/icons/import_32.png</iconset>
+            <iconset resource="../darkstyle/style.qrc">
+             <normaloff>:/qss_icons/rc/import.png</normaloff>:/qss_icons/rc/import.png</iconset>
+           </property>
+           <property name="iconSize">
+            <size>
+             <width>30</width>
+             <height>30</height>
+            </size>
            </property>
           </widget>
          </item>
@@ -68,17 +149,35 @@
            <property name="enabled">
             <bool>false</bool>
            </property>
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="minimumSize">
+            <size>
+             <width>40</width>
+             <height>40</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>40</width>
+             <height>40</height>
+            </size>
+           </property>
            <property name="text">
-            <string>View</string>
+            <string/>
            </property>
            <property name="icon">
-            <iconset>
-             <normaloff>:/icons/viewIcon.png</normaloff>:/icons/viewIcon.png</iconset>
+            <iconset resource="../darkstyle/style.qrc">
+             <normaloff>:/qss_icons/rc/startProc.png</normaloff>:/qss_icons/rc/startProc.png</iconset>
            </property>
            <property name="iconSize">
             <size>
-             <width>16</width>
-             <height>20</height>
+             <width>30</width>
+             <height>32</height>
             </size>
            </property>
           </widget>
@@ -132,7 +231,7 @@
   </customwidget>
  </customwidgets>
  <resources>
-  <include location="../resources/MR_DWI.qrc"/>
+  <include location="../darkstyle/style.qrc"/>
  </resources>
  <connections/>
 </ui>

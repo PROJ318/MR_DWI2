@@ -146,7 +146,9 @@ void MainWindow::onStartdicom()
 	//std::cout << "button clicked" << std::endl;
 	DicomUI->setWindowFlags(Qt::Window);
 	DicomUI->setWindowTitle(tr("DICOM BROWSER"));
-	DicomUI->resize(1600, 1000);
+	DicomUI->setAttribute(Qt::WA_QuitOnClose, true);
+	DicomUI->resize(1600, 700);
+	DicomUI->move(ui->ViewFrame->geometry().topLeft());
 	DicomUI->show();
 	
 

@@ -360,7 +360,7 @@ QFrame[frameShape=&quot;6&quot;] /*styledPannel*/
      color: rgb(255,255,255);
      background-color: transparent;
      border: 1px solid rgb(255,255,255);
-     border-radius: 4px;
+     border-radius: 2px;
      outline: none;
      }
 
@@ -369,7 +369,7 @@ QFrame[frameShape=&quot;6&quot;] /*styledPannel*/
      color: rgb(168,168,168);
      background-color: transparent;
      border: 1px solid rgb(35,35,37);
-     border-radius: 4px;
+     border-radius: 2px;
      outline: none;
      }
 
@@ -377,14 +377,15 @@ QFrame[frameShape=&quot;6&quot;] /*styledPannel*/
      color: rgb(255,255,255);
      background-color:transparent;
      border: 1px solid rgb(233,89,89);
-     border-radius: 4px;
+     border-radius: 2px;
      outline: none;
      }
 
      QPushButton:focus{
      color: rgb(255,255,255);
-     background-color: rgb(46,52,62);
-     border: none;
+     background-color: transparent;
+     border: 1px solid rgb(255,255,255);
+     border-radius: 2px;
      outline: none;
      }
 
@@ -393,14 +394,23 @@ QFrame[frameShape=&quot;6&quot;] /*styledPannel*/
      color: rgb(233,89,89);
      background-color: transparent;
      border: 1px solid rgb(233,89,89);
-     border-radius: 4px;
+     border-radius: 2px;
      }
 
      QPushButton:checked{
      color: rgb(233,89,89);
      background-color: transparent;
      border: 1px solid rgb(233,89,89);
-     border-radius: 4px;
+     border-radius: 2px;
+     outline: none;
+     }
+
+     QPushButton:unchecked
+     {
+     color: rgb(255,255,255);
+     background-color: transparent;
+     border: 1px solid rgb(255,255,255);
+     border-radius: 2px;
      outline: none;
      }
 
