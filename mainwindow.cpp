@@ -70,42 +70,6 @@
 #include <vtkCollection.h>
 
 
-bool cmp(std::pair<float, int> p1, std::pair<float, int> p2)
-{
-	if (p1.first < p2.first) return 1;
-	return 0;
-
-}
-
-//vtkImageActor* getImageActorFromRender(vtkRenderer* inputRenderer)
-//{
-//	if (!inputRenderer)
-//	{
-//		qDebug() << "inputRenderer is NULL" << endl;
-//	}
-//	vtkPropCollection* actorCollection = inputRenderer->GetActors();
-//	qDebug() << actorCollection->GetNumberOfItems() << "actors are found" << endl;
-//	actorCollection->InitTraversal();
-//	for (vtkIdType i = 0; i < actorCollection->GetNumberOfItems(); i++)
-//	{
-//		vtkProp* nextActor = actorCollection->GetNextProp();
-//		qDebug() << "nextActor " << i << " : " << nextActor->GetClassName() << endl;
-//		std::string className = nextActor->GetClassName();
-//		std::string wantedClass = "vtkImageActor";
-//		if (className == wantedClass)
-//		{
-//			qDebug() << "nextActor " << i << " is a vtkImageActor!" << endl;
-//			vtkImageActor* wantActor = dynamic_cast<vtkImageActor*> (nextActor);
-//			return wantActor;
-//		}
-//		else
-//		{
-//			qDebug() << "nextActor " << i << " : " << nextActor->GetClassName() << endl;
-//		}
-//	}
-//	return NULL;
-//}
-
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent)
 {
@@ -133,7 +97,8 @@ MainWindow::MainWindow(QWidget *parent) :
 	//ui->chartROIBtn->setDisabled(true);
 	roiInfoModel = new QStandardItemModel;	
 	this->ui->statisBrowser->setModel(roiInfoModel);
-
+	//this->ui->statisBrowser->setHeaderHidden(true);
+	this->ui->statisBrowser->resizeColumnToContents(0);
 	connect(ui->FileButton, SIGNAL(clicked()), this, SLOT(onStartdicom()));
 	connect(DicomUI, SIGNAL(SignalDicomRead(QStringList)), this, SLOT(OnImageFilesLoaded(QStringList)));
 
@@ -146,6 +111,12 @@ MainWindow::MainWindow(QWidget *parent) :
 	connect(this, SIGNAL(SignalRecalcAll(int)), ui->diffusionModule, SLOT(onRecalcAll(int)));
 	connect(ui->diffusionModule, SIGNAL(signalSaveDcmComplete(bool)), this, SLOT(OnTaskComplete(bool)));
 
+	//Perfusion Module Connections
+	connect(this, SIGNAL(SignalRecalcAll(int)), ui->perfusionModule, SLOT(onRecalcAll(int)));
+	connect(ui->perfusionModule, SIGNAL(SignalTestButtonFired(bool, vtkSmartPointer <vtkImageData>, QString, float, float)),
+		this, SLOT(onProcButtonClicked(bool, vtkSmartPointer <vtkImageData>, const QString, const float, const float)));
+	connect(this, SIGNAL(SignalSetSourceImage(DicomHelper*, int)), ui->perfusionModule, SLOT(onSetSourceImage(DicomHelper*, int)));
+
 	//ImageInfo Module Connections
 	connect(ui->pickingBtn, SIGNAL(toggled(bool)), this, SLOT(onCursorPickValue(bool)));
 
@@ -153,6 +124,8 @@ MainWindow::MainWindow(QWidget *parent) :
 	connect(ui->newROI, SIGNAL(clicked()), this, SLOT(addROI()));
 	connect(ui->statisBrowser, SIGNAL(clicked(QModelIndex)), this, SLOT(onClickTreeView(QModelIndex)));
 	connect(ui->chartROIBtn, SIGNAL(toggled(bool)), this, SLOT(onAddRoiChart(bool)));
+	connect(ui->barROIBtn, SIGNAL(toggled(bool)), this, SLOT(onAddRoiBar(bool)));
+
 	//View Frame Connections
 	connect(ui->ViewFrame, SIGNAL(signalWheel(const QString, int, Qt::Orientation)), this, SLOT(onWheelWdw(const QString, int, Qt::Orientation)));
 	connect(ui->ViewFrame, SIGNAL(signalFocusIn(const QString)), this, SLOT(onFocusWdw(const QString)));
@@ -248,17 +221,16 @@ void MainWindow::OnImageFilesLoaded(const QStringList& fileLists)
 	}
 	this->m_DicomHelper = new DicomHelper(loadingFiles);
 
-
-
-	if (m_DicomHelper->numberOfBValue < 2)
-		//for none diffusion images
-		this->sourceImage = this->m_DicomHelper->DicomReader->GetOutput();
-	else
-	{
-		//for Diffusion images.
-		this->SortingSourceImage();
-		//this->UpdateMaskVectorImage();
-	}
+	this->sourceImage = this->m_DicomHelper->imageData;
+	//if (m_DicomHelper->numberOfBValue < 2)
+	//	//for none diffusion images
+	//	this->sourceImage = this->m_DicomHelper->DicomReader->GetOutput();
+	//else
+	//{
+	//	//for Diffusion images.
+	//	this->SortingSourceImage();
+	//	//this->UpdateMaskVectorImage();
+	//}
 
 	//TO_DO: delete image3Dstorage, refresh viewport. 
 
@@ -299,71 +271,6 @@ void MainWindow::OnImageFilesLoaded(const QStringList& fileLists)
 	}
 }
 
-void MainWindow::SortingSourceImage()
-{
-	//sorting b value list from small to larger using vector Pair sort.
-	//which can get the sorted index array. it can be used for the 
-	//source image sorting.
-	std::vector< std::pair<float, int> > vectorPair;
-	std::vector<int> bValueOrderIndex(m_DicomHelper->BvalueList.size());
-	cout << "b values lise:" << m_DicomHelper->BvalueList.size() << endl;
-	for (int i = 0; i < m_DicomHelper->BvalueList.size(); i++)
-	{
-		bValueOrderIndex[i] = i;
-		vectorPair.push_back(std::make_pair(m_DicomHelper->BvalueList[i], bValueOrderIndex[i]));
-	}
-	std::stable_sort(vectorPair.begin(), vectorPair.end(), cmp);
-	for (int i = 0; i < m_DicomHelper->BvalueList.size(); i++)
-	{
-		cout << "b value:" << vectorPair[i].first << "index:" << vectorPair[i].second << endl;
-		m_DicomHelper->BvalueList[i] = vectorPair[i].first;
-		bValueOrderIndex[i] = vectorPair[i].second;
-	}
-
-
-	//allocate memory for sourceImage based on the dicom output data.
-	this->sourceImage->SetDimensions(this->m_DicomHelper->imageDimensions);
-	this->sourceImage->SetSpacing(this->m_DicomHelper->DicomReader->GetOutput()->GetSpacing());
-	this->sourceImage->SetOrigin(this->m_DicomHelper->DicomReader->GetOutput()->GetOrigin());
-	this->sourceImage->AllocateScalars(VTK_UNSIGNED_SHORT, this->m_DicomHelper->numberOfComponents);
-
-	// Sorting the output data based on the b Value order
-	int* dims = this->m_DicomHelper->imageDimensions;
-	for (int z = 0; z<dims[2]; z++)
-	{
-		for (int y = 0; y<dims[1]; y++)
-		{
-			for (int x = 0; x<dims[0]; x++)
-			{
-				int numOfGradDir = this->m_DicomHelper->numberOfGradDirection;
-				if (this->m_DicomHelper->IsoImageLabel > -1) numOfGradDir += 1;
-				SourceImagePixelType *dicomPtr = static_cast<SourceImagePixelType *>(this->m_DicomHelper->DicomReader->GetOutput()->GetScalarPointer(x, y, z));
-				SourceImagePixelType *sourcePtr = static_cast<SourceImagePixelType *>(this->sourceImage->GetScalarPointer(x, y, z));
-				sourcePtr[0] = dicomPtr[bValueOrderIndex[0] * numOfGradDir];
-
-				//sorting based on the b value order
-				int sourceCmpIndex = 1;
-				for (int cmp = 1; cmp < this->m_DicomHelper->DicomReader->GetNumberOfScalarComponents(); cmp++)
-				{
-					//get the b value index for current component
-					int bValueIndex = (cmp - 1) / numOfGradDir + 1;
-					//get the grad direction indec for current component
-					int gradDirIndex = cmp - 1 - numOfGradDir*(bValueIndex - 1);
-					//calculate the corrsponding component index in the dicom output data
-					int dicomCmpIndex;
-					if (bValueOrderIndex[bValueIndex] < bValueOrderIndex[0])
-						dicomCmpIndex = (bValueOrderIndex[bValueIndex]) * numOfGradDir + gradDirIndex;
-					else
-						dicomCmpIndex = (bValueOrderIndex[bValueIndex] - 1) * numOfGradDir + gradDirIndex + 1;
-					// remove the Isotropic direction for DTI
-					if (this->m_DicomHelper->IsoImageLabel != dicomCmpIndex)
-						sourcePtr[sourceCmpIndex++] = dicomPtr[dicomCmpIndex];
-				}
-			}
-		}
-	}
-}
-
 void MainWindow::DisplayDicomInfo(vtkSmartPointer <vtkImageData> imageData)
 {
 
@@ -386,7 +293,7 @@ void MainWindow::DisplayDicomInfo(vtkSmartPointer <vtkImageData> imageData)
 	imageData->GetScalarRange(range);
 	qDebug() << "range: " << range[0] << "x" << range[1] << endl;
 
-	vtkMedicalImageProperties* properties = m_DicomHelper->DicomReader->GetMedicalImageProperties();
+	vtkMedicalImageProperties* properties = m_DicomHelper->GetDicomReader()->GetMedicalImageProperties();
 	QString imageInfo(tr("Patient Name : "));
 	imageInfo.append(QLatin1String(properties->GetPatientName()));
 	imageInfo.append("\n");
@@ -860,7 +767,7 @@ void MainWindow::onFocusWdw(const QString widgetName)
 	{
 		ActiveWdw.removeOne(widgetName);
 		ui->ViewFrame->onRemoveLabelWdw(widgetName);
-//		QWidget* focusWindow = ui->ViewFrame->getWindow(widgetName);
+		//QWidget* focusWindow = ui->ViewFrame->getWindow(widgetName);
 		qDebug() << "Changing " << widgetName << " from Active to Inactive";
 	}
 	else{
@@ -996,44 +903,76 @@ void MainWindow::addROI() //bool _istoggled
 
 	if (roimode >= 0)
 	{
-		qDebug() << "drawing new ROI " << endl;
+		QStandardItem * hookItem;
+
+		qDebug() << "ROI Mode = " <<roimode;
 
 		QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
 		QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
 		while (wdwIter.hasNext())
 		{
-			wdwIter.next();
+			wdwIter.next();		
+
+			bool hasImageRow(false);
+			for (int i = 0; i < root->rowCount(); i++)
+			{
+				if (wdwIter.key() == root->child(i)->text()) //check ROI level
+				{
+					hasImageRow = true;
+				}
+			}
+			if (!hasImageRow)
+			{
+				qDebug() << "Creating " << wdwIter.key();
+				QList<QStandardItem *> imgROIRow;
+				imgROIRow << new QStandardItem(wdwIter.key()) << new QStandardItem("Volumn") << new QStandardItem("Value") << new QStandardItem("Range");
+				root->appendRow(imgROIRow);
+			}
 			if (!ActiveWdw.contains(wdwIter.key()))
 			{
 				ActiveWdw << wdwIter.key();
 				ui->ViewFrame->onLabelWdw(wdwIter.key());
+				
 			}
 		}		
-		
-		QStandardItem * entryPoint;
-		if (roimode > 0) //apend: 
-		{
-			//retrieving root of existing ROI tree;
-			for (int i = 0; i < root->rowCount(); i++)
-			{
-				if (text == root->child(i)->text())
-				{
-					entryPoint = root->child(i);
-				}
-			}
+				
+		//if (roimode > 0) //apend: 
+		//{
+		//	//retrieving root of existing ROI tree;
+		//	for (int i = 0; i < root->rowCount(); i++)
+		//	{
+		//		if (text == root->child(i)->text())
+		//		{
+		//			hookItem = root->child(i);
+		//		}
+		//	}
 
-		}
-		else //new: 
-		{ 
-			//creating ROI tree,return its root;
-			QList<QStandardItem *> newROIRow;
-			newROIRow << new QStandardItem(text) << new QStandardItem("Volumn") << new QStandardItem("Value") << new QStandardItem("Range");
-			root->appendRow(newROIRow);
-			entryPoint = newROIRow.first();
-		}
+		ui->statisBrowser->resizeColumnToContents(0);
 		
 		foreach(QString wdwName, ActiveWdw)
 		{
+			QStandardItem *imgRoot = roiInfoModel->findItems(wdwName)[0];			
+			if (roimode > 0) //apend: 
+			{
+				//retrieving root of existing ROI tree;				
+				for (int i = 0; i < imgRoot->rowCount(); i++)
+				{
+					if (text == imgRoot->child(i)->text()) //check ROI level
+					{
+						qDebug() << "handling "<<text<<" at "<<i<<"of ROW " << imgRoot->index().row();
+						hookItem = imgRoot->child(i);
+					}
+
+				}
+			}else //new: 
+			{
+				//creating ROI tree,return its root;
+				QList<QStandardItem *> newROIRow;
+				newROIRow << new QStandardItem(text) << new QStandardItem("0") << new QStandardItem("0") << new QStandardItem("0");
+				imgRoot->appendRow(newROIRow);
+				hookItem = newROIRow.first();
+			}
+			qDebug() << "hook Item is " << wdwName << "->" << hookItem->text();
 			QVTKWidget *thisWindow = static_cast <QVTKWidget*> (ui->ViewFrame->getWindow(wdwName));
 			qDebug() << "add ROI on window " << wdwName;
 			float scalingPara[2];
@@ -1042,7 +981,7 @@ void MainWindow::addROI() //bool _istoggled
 			qDebug() << "slope intercept = " << scalingPara[0] << scalingPara[1] << wdwName;
 			vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
 			vtkRoiInteractor* RoiInterObs = new vtkRoiInteractor;
-			RoiInterObs->initialize(renInter, entryPoint, scalingPara, wdwName, &Roi2DHash, roimode, m_SourceImageCurrentSlice);
+			RoiInterObs->initialize(renInter, hookItem, scalingPara, wdwName, &Roi2DHash, roimode, m_SourceImageCurrentSlice);
 		}
 	}
 }
@@ -1155,48 +1094,114 @@ void MainWindow::onExportImage()
 void MainWindow::onAddRoiChart(bool _toggle)
 {
 	if (_toggle)
-	{		
-		QStandardItem *hookitem;
+	{
 		if (curRoiDataindex.isValid())
 		{
+			QChart *splineChart = new QChart;
+			QStandardItem *hookitem;
 			hookitem = roiInfoModel->itemFromIndex(curRoiDataindex);
+			
+			//QList<QSplineSeries* > seriesets;
+			//QSplineSeries *series = new QSplineSeries;			
+			//QList<float> stdsets;
+			for (int i = 0; i < hookitem->rowCount(); i++)
+			{
+				
+				QSplineSeries *line = new QSplineSeries;
+				QScatterSeries *point = new QScatterSeries;
+				line->setName(hookitem->child(i)->text());
+				point->setName(hookitem->child(i)->text());
+				point->setMarkerSize(10.0);
+				for (int j = 0; j < hookitem->child(i)->rowCount(); j++)
+				{
+					QString valueTxt = hookitem->child(i)->child(j, 2)->text();
+					float value = valueTxt.section(" (", 0, 0).toFloat();
+					//float std = valueTxt.section("(", 1, 1).section(")", 0, 0).toFloat();
+					line->append(j, value);
+					point->append(j, value);
+					qDebug() << "SPLINECHART SERIES "<<i<<" : " << j << "," << value << ">";
+				}
+				splineChart->addSeries(line);
+				splineChart->addSeries(point);
+				//stdsets << std;
+			}					
+			splineChart->setTitle(hookitem->text());
+			splineChart->setAnimationOptions(QChart::SeriesAnimations);
+			splineChart->legend()->setAlignment(Qt::AlignTop);
+			splineChart->setTheme(QChart::ChartThemeDark);
+			splineChart->createDefaultAxes();
+			//QBarCategoryAxis *axis = new QBarCategoryAxis();
+			//axis->append(QString("Mean"));
+			QChartView *chartView = new QChartView(splineChart);
+			chartView->setRenderHint(QPainter::Antialiasing);
+			//chartView->setback
+			ui->ViewFrame->insertWindow(chartView, QString("RoiBarChart"));
 		}
 		else{
-			hookitem = roiInfoModel->invisibleRootItem();
+			info = new QMessageBox(this);
+			info->setWindowTitle(tr("Data Select ERROR"));
+			info->setText(tr("Pleas select either image name or ROI name from the data tree view"));
+			info->setStandardButtons(QMessageBox::Ok);
+			int ret = info->exec();
+			return;
 		}
-		QList<QBarSet* > barsets;
-		QBarSeries *series = new QBarSeries();
-		QList<float> stdsets;
-		for (int i = 0; i < hookitem->rowCount(); i++)
-		{
-			QBarSet *set = new QBarSet(hookitem->child(i,0)->text());
-			QString valueTxt = hookitem->child(i, 2)->text();
-			float value = valueTxt.section(" (", 0, 0).toFloat();
-			float std = valueTxt.section("(", 1, 1).section(")", 0, 0).toFloat();
-			*set << value;
-			series->append(set);			
-			stdsets << std;
-		}
-		QChart *barchart = new QChart();
-		barchart->addSeries(series);
-		barchart->setTitle(hookitem->text());
-		barchart->setAnimationOptions(QChart::SeriesAnimations);
-		barchart->legend()->setAlignment(Qt::AlignBottom);
-		barchart->setTheme(QChart::ChartThemeDark);
-		barchart->createDefaultAxes();
-		QBarCategoryAxis *axis = new QBarCategoryAxis();
-		axis->append(QString("Mean"));
-		QChartView *chartView = new QChartView(barchart);
-		chartView->setRenderHint(QPainter::Antialiasing);
 
-		ui->ViewFrame->insertWindow(chartView, QString("RoiBarChart"));
 	}
 	else
 	{
 		ui->ViewFrame->removeWindow(QString("RoiBarChart"));
 	}
+}
 
+void MainWindow::onAddRoiBar(bool _toggle)
+{
+	if (_toggle)
+	{
+		if (curRoiDataindex.isValid())
+		{
+			QStandardItem *hookitem;
+			hookitem = roiInfoModel->itemFromIndex(curRoiDataindex);
+			QList<QBarSet* > barsets;
+			QBarSeries *series = new QBarSeries();
+			QList<float> stdsets;
+			for (int i = 0; i < hookitem->rowCount(); i++)
+			{
+				QBarSet *set = new QBarSet(hookitem->child(i, 0)->text());
+				QString valueTxt = hookitem->child(i, 2)->text();
+				float value = valueTxt.section(" (", 0, 0).toFloat();
+				float std = valueTxt.section("(", 1, 1).section(")", 0, 0).toFloat();
+				*set << value;
+				series->append(set);
+				stdsets << std;
+			}
+			QChart *barchart = new QChart();
+			barchart->addSeries(series);
+			barchart->setTitle(hookitem->text());
+			barchart->setAnimationOptions(QChart::SeriesAnimations);
+			barchart->legend()->setAlignment(Qt::AlignBottom);
+			barchart->setTheme(QChart::ChartThemeDark);
+			barchart->createDefaultAxes();
+			QBarCategoryAxis *axis = new QBarCategoryAxis();
+			axis->append(QString("Mean"));
+			barchart->setAxisX(axis);
+			QChartView *chartView = new QChartView(barchart);
+			chartView->setRenderHint(QPainter::Antialiasing);
+			ui->ViewFrame->insertWindow(chartView, QString("RoiBarChart"));
+		}
+		else{
+			info = new QMessageBox(this);
+			info->setWindowTitle(tr("Data Select ERROR"));
+			info->setText(tr("Pleas select either image name or ROI name from the data tree view"));
+			info->setStandardButtons(QMessageBox::Ok);
+			int ret = info->exec();
+			return;
+		}
 
+	}
+	else
+	{
+		ui->ViewFrame->removeWindow(QString("RoiBarChart"));
+	}
 }
 
 void MainWindow::OnTaskComplete(bool complete)

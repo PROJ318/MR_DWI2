@@ -1,5 +1,5 @@
 #include <DicomHelper.h>
-
+#include <algorithm>
 //#include <vtkDICOMMetaData.h>
 #include <vtkDICOMValue.h>
 #include <vtkMedicalImageProperties.h>
@@ -9,36 +9,77 @@
 #include <vtkIntArray.h>
 //#include "qdebug.h"
 
+bool cmp(std::pair<float, int> p1, std::pair<float, int> p2)
+{
+	if (p1.first < p2.first) return 1;
+	return 0;
+
+}
 
 DicomHelper::DicomHelper(vtkStringArray* Files)
 {
-	numberOfGradDirection = 1;
-	numberOfBValue = 1;
-	scaleSlope = 1;
-	scaleIntercept = 0;
-	isEnhanced = 1;
-	ang.Fill(0.0);
-
-	//if (Files->GetSize() == 1) isEnhanced = 1;
+	// dicomreader (input: filenames, TimeAsVectorOn for dynamic data)
 	DicomReader = vtkSmartPointer<vtkDICOMReader>::New();
 	DicomReader->SetFileNames(Files);
-	//cout << "file:" << Files->GetPointer(0)->c_str() << endl;
-	//DicomReader->SetFileName(Files->GetPointer(0)->c_str());
-	//Resacle will be done out of the reader.
-	DicomReader->AutoRescaleOff(); 
+	DicomReader->TimeAsVectorOn();
+	DicomReader->AutoRescaleOff();
 	DicomReader->Update();
+	//if (Files->GetSize() == 1) isEnhanced = 1;
 
-	numberOfComponents = DicomReader->GetNumberOfScalarComponents();
-	DicomReader->GetOutput()->GetDimensions(imageDimensions);
+	// Dicom meta data: includs the dicom info
+	DicomReader->UpdateInformation();
+	vtkDICOMMetaData* DicomMetaData = vtkDICOMMetaData::New();
+	DicomMetaData = DicomReader->GetMetaData();
 
-	vtkMedicalImageProperties* properties = DicomReader->GetMedicalImageProperties();
-	manuFacturer = properties->GetManufacturer();
+	imageMedicalProperties = vtkSmartPointer<vtkMedicalImageProperties>::New();
+	imageMedicalProperties = DicomReader->GetMedicalImageProperties();
+	manuFacturer = imageMedicalProperties->GetManufacturer();
 	if ((manuFacturer[0] == 'G') || (manuFacturer[0] == 'g'))
 	{
-		DicomTagForGE();
+		//change the dicom tag value to GE standars; default is Philips'
+		this->DicomTagForGE();
 	}
 
-	DicomInfo();
+	// Get the data type: DIFFUSSION or DYNAMIC? (only for these two kinds data now)
+	imageDataType = "NONE";
+	std::string diffusionChar = DicomMetaData->GetAttributeValue(IsDiffusionSeries).AsString();
+	std::string dynamicChar = DicomMetaData->GetAttributeValue(IsDynamicSeries).AsString();
+	numberOfDynamic = DicomMetaData->GetAttributeValue(NrOfDynamics).AsInt();
+	if (diffusionChar[0] == 'Y' || diffusionChar[0] == 'y') 
+		imageDataType = "DIFFUSION";
+	if ((dynamicChar[0] == 'Y'||dynamicChar[0] == 'y') 
+		&& numberOfDynamic > 20)
+		imageDataType = "PERFUSION";
+	cout << "[DICOM DATA TYPE]: " << imageDataType.c_str() << endl;
+
+	//general parametes;
+	scaleSlope = 1;
+	scaleIntercept = 0;
+	/*for diffusion, the number of components is the diffusion encoding numbers: includs b value and direction;
+	  for perfusion, the number of components is the number of dynamics.
+	*/
+	numberOfComponents = DicomReader->GetNumberOfScalarComponents(); 
+	DicomReader->GetOutput()->GetDimensions(imageDimensions);
+	isEnhanced = 1;
+
+
+	//Diffusion parameters;
+	numberOfGradDirection = 1;
+	numberOfBValue = 1;
+	ang.Fill(0.0);
+	//perfusion parameters;
+
+	// get the related parameters;
+	this->DicomInfo(DicomMetaData);
+
+	//the image data;
+	imageData = vtkSmartPointer<vtkImageData>::New();
+	imageData = this->DicomReader->GetOutput();
+	if (imageDataType == "DIFFUSION" && numberOfBValue > 2)
+	{
+		//only for Diffusion images with number of b values larger than 2(includes b = 0)
+		this->SortingSourceImage(imageData);
+	}
 };
 
 void DicomHelper::DicomTagForGE()
@@ -51,36 +92,40 @@ void DicomHelper::DicomTagForGE()
     //DICOM_DIFF_DIRECT_3       vtkDICOMTag(0x0019, 0x10bd)// slice; k
 };
 
-void DicomHelper::DicomInfo()
+void DicomHelper::DicomInfo(vtkDICOMMetaData* metaData)
 {
-	DicomReader->UpdateInformation();
-	vtkDICOMMetaData* meta = vtkDICOMMetaData::New();
-	meta = DicomReader->GetMetaData();
-
 	vtkIntArray* fileIndexArray = vtkIntArray::New();
 	fileIndexArray = DicomReader->GetFileIndexArray();
-
 	vtkIntArray* frameIndexArray = vtkIntArray::New();
 	frameIndexArray = DicomReader->GetFrameIndexArray();
-	//cout << "number of components:" << frameIndexArray->GetNumberOfComponents() << endl;
-
-	//GetAttributeValue(0, 0, dicomTag) is applied for Enhanced DICOM
-	if (meta->GetAttributeValue(0, 0, ScaleSlop).IsValid())
+	if (metaData->GetAttributeValue(0, 0, ScaleSlop).IsValid())
 	{
-		scaleSlope = meta->GetAttributeValue(0, 0, ScaleSlop).AsFloat();
+		scaleSlope = metaData->GetAttributeValue(0, 0, ScaleSlop).AsFloat();
+		cout << "scale slope: " << scaleSlope << endl;
+	}
+	if (metaData->GetAttributeValue(0, 0, ScaleInterpcept).IsValid())
+	{
+		scaleIntercept = metaData->GetAttributeValue(0, 0, ScaleInterpcept).AsFloat();
+		cout << "scale intercept: " << scaleIntercept << endl;
 	}
 
-	if (meta->GetAttributeValue(0, 0, ScaleInterpcept).IsValid())
-	{
-		scaleIntercept = meta->GetAttributeValue(0, 0, ScaleInterpcept).AsFloat();
-	}
+	//Get diffusion paramters;
+	if (imageDataType == "DIFFUSION")
+		DiffusionInfo(metaData, fileIndexArray, frameIndexArray);
 
-	//if (meta->HasAttribute(DiffusionBValues))
-	if (meta->GetAttributeValue(0, 0, DiffusionBValues).IsValid())
+	if (imageDataType == "PERFUSION")
+		PerfusionInfo(metaData, fileIndexArray, frameIndexArray);
+};
+
+void DicomHelper::DiffusionInfo(vtkDICOMMetaData* metaData, 
+	vtkIntArray* fileIndexArray, vtkIntArray* frameIndexArray)
+{
+	// b values
+	if (metaData->GetAttributeValue(0, 0, DiffusionBValues).IsValid())
 	{
 		char* pEnd;
 		int bval_basic = 1000000000;
-
+		cout << "here 3" << endl;
 		int former_bValue = -1;
 		//replace with below to fix possible multiple b value multiple direction error
 		for (int i = 0; i < numberOfComponents; i++) //i = i + numberOfGradDirection
@@ -91,13 +136,15 @@ void DicomHelper::DicomInfo()
 
 			if ((manuFacturer[0] == 'P') || (manuFacturer[0] == 'p'))
 				//Philips Vendor;
-				b_value = meta->GetAttributeValue(index, framIndex, DiffusionBValues).AsInt();
+				b_value = metaData->GetAttributeValue(index, framIndex, DiffusionBValues).AsInt();
+			cout << "b_value:" << b_value << endl;
 			if ((manuFacturer[0] == 'G') || (manuFacturer[0] == 'g'))
 			{
 				//GE Vendor;
-				std::string slopInt4 = meta->GetAttributeValue(index, DiffusionBValues).AsString();
+				std::string slopInt4 = metaData->GetAttributeValue(index, DiffusionBValues).AsString();
 				std::string bval_string = slopInt4.substr(0, slopInt4.length() - 6);
 				b_value = static_cast<unsigned int>(strtod(bval_string.c_str(), &pEnd));
+
 				//in case some GE bvalue is: 1000000050 which is b = 50;
 				if (b_value > bval_basic) b_value = b_value - bval_basic;
 			}
@@ -110,38 +157,36 @@ void DicomHelper::DicomInfo()
 		}
 		numberOfBValue = BvalueList.size();
 		numberOfGradDirection = numberOfBValue > 1 ? (numberOfComponents - 1) / (numberOfBValue - 1) : (numberOfComponents - 1);
-		cout << "number of B value:" << numberOfBValue << endl;
-
 		if (numberOfGradDirection > 6)  tensorComputationPossible = true;
 	}
 
-
+	//if tensor calculation need, just DTI now, further for DKI
 	if (tensorComputationPossible)
 	{
 
-		if (meta->GetAttributeValue(0, 0, ImagingOrientation).IsValid())
+		if (metaData->GetAttributeValue(0, 0, ImagingOrientation).IsValid())
 		{
 			//std::string image_orientation
-			image_orientation = meta->GetAttributeValue(0, 0, ImagingOrientation).GetCharData();
+			image_orientation = metaData->GetAttributeValue(0, 0, ImagingOrientation).GetCharData();
 			if (!image_orientation) image_orientation = "TRANSVERSAL";
 			cout << "image orientation " << *image_orientation << endl;
 
 		}
 
-		if (meta->GetAttributeValue(0, 0, ImagingDirectionRL).IsValid()
-			&& meta->GetAttributeValue(0, 0, ImagingDirectionFH).IsValid()
-			&& meta->GetAttributeValue(0, 0, ImagingDirectionAP).IsValid())
+		if (metaData->GetAttributeValue(0, 0, ImagingDirectionRL).IsValid()
+			&& metaData->GetAttributeValue(0, 0, ImagingDirectionFH).IsValid()
+			&& metaData->GetAttributeValue(0, 0, ImagingDirectionAP).IsValid())
 		{
-			ang[0] = meta->GetAttributeValue(0, 0, ImagingDirectionRL).AsDouble();
-			ang[1] = meta->GetAttributeValue(0, 0, ImagingDirectionAP).AsDouble();
-			ang[2] = meta->GetAttributeValue(0, 0, ImagingDirectionFH).AsDouble();
+			ang[0] = metaData->GetAttributeValue(0, 0, ImagingDirectionRL).AsDouble();
+			ang[1] = metaData->GetAttributeValue(0, 0, ImagingDirectionAP).AsDouble();
+			ang[2] = metaData->GetAttributeValue(0, 0, ImagingDirectionFH).AsDouble();
 			cout << "angle: " << ang[0] << " " << ang[1] << endl;
- 		}
+		}
 		GetSliceToPatMatrix();
 
-		if (meta->GetAttributeValue(0, 0, DiffusionDirectionAP).IsValid()
-			&& meta->GetAttributeValue(0, 0, DiffusionDirectionFH).IsValid()
-			&& meta->GetAttributeValue(0, 0, DiffusionDirectionRL).IsValid()
+		if (metaData->GetAttributeValue(0, 0, DiffusionDirectionAP).IsValid()
+			&& metaData->GetAttributeValue(0, 0, DiffusionDirectionFH).IsValid()
+			&& metaData->GetAttributeValue(0, 0, DiffusionDirectionRL).IsValid()
 			)
 		{
 			gradientDirection = GradientDirectionContainerType::New();
@@ -153,9 +198,9 @@ void DicomHelper::DicomInfo()
 				// b0 is the first component, gradientdirection stars from the second component.
 				int index = fileIndexArray->GetComponent(0, cmp);
 				int framIndex = frameIndexArray->GetComponent(0, cmp);
-				float AP_direction = meta->GetAttributeValue(index, framIndex, DiffusionDirectionAP).AsFloat();
-				float FH_direction = meta->GetAttributeValue(index, framIndex, DiffusionDirectionFH).AsFloat();
-				float RL_direction = meta->GetAttributeValue(index, framIndex, DiffusionDirectionRL).AsFloat();
+				float AP_direction = metaData->GetAttributeValue(index, framIndex, DiffusionDirectionAP).AsFloat();
+				float FH_direction = metaData->GetAttributeValue(index, framIndex, DiffusionDirectionFH).AsFloat();
+				float RL_direction = metaData->GetAttributeValue(index, framIndex, DiffusionDirectionRL).AsFloat();
 				GradientDirectionType direction;
 				direction[0] = RL_direction;
 				direction[1] = AP_direction;
@@ -181,6 +226,26 @@ void DicomHelper::DicomInfo()
 		}
 		CalculateFinalHMatrix();
 	}
+
+};
+
+void DicomHelper::PerfusionInfo(vtkDICOMMetaData* metaData, 
+	vtkIntArray* fileIndexArray, vtkIntArray* frameIndexArray)
+{
+	for (int i = 0; i < numberOfComponents; i++) //i = i + numberOfGradDirection
+	{
+		int index = fileIndexArray->GetComponent(0, i);
+		int framIndex = frameIndexArray->GetComponent(0, i);
+		if (metaData->GetAttributeValue(index, framIndex, DynamicTime).IsValid())
+		{
+			float time = metaData->GetAttributeValue(index, framIndex, DynamicTime).AsFloat();
+			dynamicTime.push_back(time);
+			cout << "time: " << time << endl;
+		}
+
+	}
+
+
 };
 
 void DicomHelper::CalculateFinalHMatrix()
@@ -291,6 +356,70 @@ vtkDICOMValue DicomHelper::GetAttributeValue(vtkDICOMMetaData* metaData, vtkDICO
 	else
 		return metaData->GetAttributeValue(fileIndex, tagValue);
 
+}
+
+void DicomHelper::SortingSourceImage(vtkImageData* sourceData)
+{
+	//sorting b value list from small to larger using vector Pair sort.
+	//which can get the sorted index array. it can be used for the 
+	//source image sorting.
+	std::vector< std::pair<float, int> > vectorPair;
+	std::vector<int> bValueOrderIndex(this->BvalueList.size());
+	cout << "b values lise:" << this->BvalueList.size() << endl;
+	for (int i = 0; i < this->BvalueList.size(); i++)
+	{
+		bValueOrderIndex[i] = i;
+		vectorPair.push_back(std::make_pair(this->BvalueList[i], bValueOrderIndex[i]));
+	}
+	std::stable_sort(vectorPair.begin(), vectorPair.end(), cmp);
+	for (int i = 0; i < this->BvalueList.size(); i++)
+	{
+		cout << "b value:" << vectorPair[i].first << "index:" << vectorPair[i].second << endl;
+		this->BvalueList[i] = vectorPair[i].first;
+		bValueOrderIndex[i] = vectorPair[i].second;
+	}
+
+	//allocate memory for sourceImage based on the dicom output data.
+	//this->imageData->SetDimensions(this->imageDimensions);
+	//this->imageData->SetSpacing(this->DicomReader->GetOutput()->GetSpacing());
+	//this->imageData->SetOrigin(this->DicomReader->GetOutput()->GetOrigin());
+	//this->imageData->AllocateScalars(VTK_UNSIGNED_SHORT, this->numberOfComponents);
+
+	// Sorting the output data based on the b Value order
+	int* dims = this->imageDimensions;
+	for (int z = 0; z<dims[2]; z++)
+	{
+		for (int y = 0; y<dims[1]; y++)
+		{
+			for (int x = 0; x<dims[0]; x++)
+			{
+				int numOfGradDir = this->numberOfGradDirection;
+				if (this->IsoImageLabel > -1) numOfGradDir += 1;
+				unsigned short *dicomPtr = static_cast<unsigned short *>(this->DicomReader->GetOutput()->GetScalarPointer(x, y, z));
+				unsigned short *sourcePtr = static_cast<unsigned short *>(sourceData->GetScalarPointer(x, y, z));
+				sourcePtr[0] = dicomPtr[bValueOrderIndex[0] * numOfGradDir];
+
+				//sorting based on the b value order
+				int sourceCmpIndex = 1;
+				for (int cmp = 1; cmp < numberOfComponents; cmp++)
+				{
+					//get the b value index for current component
+					int bValueIndex = (cmp - 1) / numOfGradDir + 1;
+					//get the grad direction indec for current component
+					int gradDirIndex = cmp - 1 - numOfGradDir*(bValueIndex - 1);
+					//calculate the corrsponding component index in the dicom output data
+					int dicomCmpIndex;
+					if (bValueOrderIndex[bValueIndex] < bValueOrderIndex[0])
+						dicomCmpIndex = (bValueOrderIndex[bValueIndex]) * numOfGradDir + gradDirIndex;
+					else
+						dicomCmpIndex = (bValueOrderIndex[bValueIndex] - 1) * numOfGradDir + gradDirIndex + 1;
+					// remove the Isotropic direction for DTI
+					if (this->IsoImageLabel != dicomCmpIndex)
+						sourcePtr[sourceCmpIndex++] = dicomPtr[dicomCmpIndex];
+				}
+			}
+		}
+	}
 }
 
 

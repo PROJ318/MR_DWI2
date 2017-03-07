@@ -331,5 +331,5 @@ void DisplayPort::onRemoveLabelWdw(const QString imageLabel)
 	QLayoutItem *Item = this->gridlayout->itemAtPosition(row, col);
 	QFrame * frame = static_cast<QFrame* >(Item->widget());
 	frame->setFrameStyle(QFrame::StyledPanel | QFrame::Plain);
-	frame->setStyleSheet("border: 2px transparent rgb(233, 89, 89);");
+	frame->setStyleSheet("border: 1px transparent rgb(233, 89, 89);");
 }

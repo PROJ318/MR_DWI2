@@ -359,7 +359,7 @@ QFrame[frameShape=&quot;6&quot;] /*styledPannel*/
      {
      color: rgb(255,255,255);
      background-color: transparent;
-     border: 1px solid rgb(94,100,104);
+     border: 1px solid rgb(255,255,255);
      border-radius: 4px;
      outline: none;
      }
@@ -368,7 +368,7 @@ QFrame[frameShape=&quot;6&quot;] /*styledPannel*/
      {
      color: rgb(168,168,168);
      background-color: transparent;
-     border: 1px solid rgb(168,168,168);
+     border: 1px solid rgb(35,35,37);
      border-radius: 4px;
      outline: none;
      }
@@ -551,17 +551,16 @@ QFrame[frameShape=&quot;6&quot;] /*styledPannel*/
      border: 0px solid rgb(168,168,168);
      border-bottom: 0px solid rgb(34,35,37);/*1px transparent black;*/
      background-color:rgb(34,35,37);
-     /*padding: 8px;*/
-     min-width: 50px;
-     border-top-left-radius: 3px;
-     border-top-right-radius: 3px;
+     padding: 4px;
+     min-width: 80px;
+     /*border-top-left-radius: 6px;
+     border-top-right-radius: 6px;*/
      }
 
      QTabBar::tab:top:!selected
      {
      color: rgb(94,100,104);
-     background-color: rgb(18,19,21);/*#54575B;*/
-     /* margin-top:2px;*/
+     background-color: rgb(18,19,21);/*#54575B;*/     
      border-top-left-radius: 4px;
      border-top-right-radius: 4px;
      border: 0px solid rgb(168,168,168);
@@ -1426,21 +1425,6 @@ QProgressBar::chunk {
               <item>
                <widget class="QWidget" name="SegmentModule2" native="true">
                 <layout class="QHBoxLayout" name="horizontalLayout_3">
-                 <property name="spacing">
-                  <number>0</number>
-                 </property>
-                 <property name="leftMargin">
-                  <number>0</number>
-                 </property>
-                 <property name="topMargin">
-                  <number>0</number>
-                 </property>
-                 <property name="rightMargin">
-                  <number>0</number>
-                 </property>
-                 <property name="bottomMargin">
-                  <number>0</number>
-                 </property>
                  <item>
                   <spacer name="horizontalSpacer_2">
                    <property name="orientation">
@@ -1503,6 +1487,54 @@ QProgressBar::chunk {
                   </widget>
                  </item>
                  <item>
+                  <widget class="QPushButton" name="barROIBtn">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="minimumSize">
+                    <size>
+                     <width>30</width>
+                     <height>30</height>
+                    </size>
+                   </property>
+                   <property name="maximumSize">
+                    <size>
+                     <width>30</width>
+                     <height>30</height>
+                    </size>
+                   </property>
+                   <property name="baseSize">
+                    <size>
+                     <width>10</width>
+                     <height>10</height>
+                    </size>
+                   </property>
+                   <property name="text">
+                    <string/>
+                   </property>
+                   <property name="icon">
+                    <iconset>
+                     <normalon>:/qss_icons/rc/chart.png</normalon>
+                    </iconset>
+                   </property>
+                   <property name="iconSize">
+                    <size>
+                     <width>22</width>
+                     <height>22</height>
+                    </size>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                   <property name="flat">
+                    <bool>false</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
                   <widget class="QPushButton" name="chartROIBtn">
                    <property name="sizePolicy">
                     <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -1533,13 +1565,13 @@ QProgressBar::chunk {
                    </property>
                    <property name="icon">
                     <iconset>
-                     <normalon>:/qss_icons/rc/editROI.png</normalon>
+                     <normalon>:/qss_icons/rc/chart-line.png</normalon>
                     </iconset>
                    </property>
                    <property name="iconSize">
                     <size>
-                     <width>22</width>
-                     <height>22</height>
+                     <width>18</width>
+                     <height>18</height>
                     </size>
                    </property>
                    <property name="checkable">
@@ -1604,11 +1636,17 @@ QProgressBar::chunk {
               <verstretch>0</verstretch>
              </sizepolicy>
             </property>
+            <property name="font">
+             <font>
+              <family>Verdana</family>
+              <pointsize>10</pointsize>
+             </font>
+            </property>
             <property name="styleSheet">
              <string notr="true"/>
             </property>
             <property name="currentIndex">
-             <number>0</number>
+             <number>1</number>
             </property>
             <widget class="QWidget" name="Module1">
              <attribute name="title">
@@ -1646,6 +1684,11 @@ QProgressBar::chunk {
              <attribute name="title">
               <string>Perfusion</string>
              </attribute>
+             <layout class="QVBoxLayout" name="verticalLayout_6">
+              <item>
+               <widget class="PerfusionCore" name="perfusionModule" native="true"/>
+              </item>
+             </layout>
             </widget>
            </widget>
           </item>
@@ -1679,6 +1722,12 @@ QProgressBar::chunk {
    <class>DisplayPort</class>
    <extends>QFrame</extends>
    <header>displayport.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>PerfusionCore</class>
+   <extends>QWidget</extends>
+   <header location="global">PerfusionCore.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

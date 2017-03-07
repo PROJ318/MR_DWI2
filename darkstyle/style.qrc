@@ -1,5 +1,7 @@
 <RCC>
     <qresource prefix="/qss_icons">
+	    <file>rc/chart.png</file>	
+		<file>rc/chart-line.png</file>	
 	    <file>rc/IMAgeenGINE.png</file>	
 	    <file>rc/newROI.png</file>	
 	    <file>rc/editROI.png</file>	

@@ -15,6 +15,7 @@ project(MR_Diffusion)
 
 add_subdirectory(DicomWidget)
 add_subdirectory(DiffusionCore)
+add_subdirectory(PerfusionCore)
 add_subdirectory(Utility)
 
 find_package(VTK REQUIRED)
@@ -54,6 +55,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   "DicomWidget"
   "DiffusionCore"
+  "PerfusionCore"
   "Utility"
 )
 
@@ -68,5 +70,5 @@ qt5_add_resources(QRC_Srcs ${QRCs} )
 # CMAKE_AUTOMOC in ON so the MocHdrs will be automatically wrapped.
 add_executable(MR_Diffusion ${Srcs} ${Hdrs} ${UI_Srcs} ${MOC_Hdrs} ${QRC_Srcs})
 qt5_use_modules(MR_Diffusion Core Gui Widgets Sql Xml UiTools XmlPatterns Concurrent Test Charts)
-target_link_libraries(MR_Diffusion ${VTK_LIBRARIES} ${QT_LIBRARIES}  DicomWidget DiffusionCore Utility CTKWidgets CTKDICOMWidgets)
+target_link_libraries(MR_Diffusion ${VTK_LIBRARIES} ${QT_LIBRARIES}  DicomWidget DiffusionCore PerfusionCore  Utility CTKWidgets CTKDICOMWidgets)
 

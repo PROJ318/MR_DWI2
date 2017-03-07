@@ -106,7 +106,7 @@ public:
 	/**
 	* \brief A QHash to store calculated 3D image.
 	*/
-	QHash< const QString, vtkSmartPointer<vtkImageData> >  image3Dstorage;
+	//QHash< const QString, vtkSmartPointer<vtkImageData> >  image3Dstorage;
 signals:
 
 	///// @brief emitted when dicomdata is imported.

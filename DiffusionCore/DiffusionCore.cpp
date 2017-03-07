@@ -209,14 +209,13 @@ void DiffusionCore::onSelectImage(const QString widgetName)
 	QStringList diffImgNm;
 	for (int buttonIndex = BUTTON_GROUP_ID + 1; buttonIndex < BUTTON_GROUP_ID + 7; buttonIndex++)
 	{
-		diffImgNm << ButtonTable->button(buttonIndex)->text();
+		diffImgNm << ButtonTable->button(buttonIndex)->text();		
 	}
 
 	int buttonID(-50);
-	
-	if (diffImgNm.indexOf(widgetName) > 0)
+	if (diffImgNm.indexOf(widgetName) >= 0)
 	{
-		buttonID = diffImgNm.indexOf(widgetName) + BUTTON_GROUP_ID + 1;
+		buttonID = diffImgNm.indexOf(widgetName) + BUTTON_GROUP_ID + 1;	
 	}
 	
 	if (buttonID > 0)
@@ -354,7 +353,7 @@ void DiffusionCore::onCalc3D(QString directory)
 		QString seriesName = QString("Derived") + ButtonTable->button(buttonID)->text();
 		vtkSmartPointer <vtkDICOMMRGenerator> generator = vtkSmartPointer <vtkDICOMMRGenerator>::New();
 		vtkSmartPointer <vtkDICOMMetaData> metaData = vtkSmartPointer<vtkDICOMMetaData>::New();
-		metaData = m_DicomHelper->DicomReader->GetMetaData();
+		metaData = m_DicomHelper->GetDicomReader()->GetMetaData();
 		metaData->SetAttributeValue(DC::SeriesDescription, seriesName.toStdString());
 		metaData->SetAttributeValue(DC::ProtocolName, seriesName.toStdString());
 
@@ -412,6 +411,7 @@ void DiffusionCore::onCalcADC(bool _istoggled) //SLOT of adcToggle
 	}
 	else
 	{
+		Diff_ActiveWdw.removeOne(BUTTON_GROUP_ID + 1);
 		calculatedAdc = NULL;
 	}
 	emit SignalTestButtonFired(_istoggled, calculatedAdc, imageName, scale, slope);
@@ -517,6 +517,7 @@ void DiffusionCore::onCalcEADC(bool _istoggled) //SLOT of eadcToggle
 	}
 	else
 	{
+		Diff_ActiveWdw.removeOne(BUTTON_GROUP_ID + 2);
 		calculatedEAdc = NULL;
 	}
 
@@ -622,6 +623,7 @@ void DiffusionCore::onCalcCDWI(bool _istoggled)  //SLOT of cdwiToggle
 	}
 	else
 	{
+		Diff_ActiveWdw.removeOne(BUTTON_GROUP_ID + 3);
 		computedDwi = NULL;
 	}
 
@@ -718,6 +720,7 @@ void DiffusionCore::onCalcFA(bool _istoggled)  //SLOT of faToggle
 	}
 	else
 	{
+		Diff_ActiveWdw.removeOne(BUTTON_GROUP_ID + 4);
 		calculatedFA = NULL;
 	}
 
@@ -797,6 +800,7 @@ void DiffusionCore::onCalcColorFA(bool _istoggled)
 	}
 	else
 	{
+		Diff_ActiveWdw.removeOne(BUTTON_GROUP_ID + 5);
 		calculatedColorFA = NULL;
 	}
 	emit SignalTestButtonFired(_istoggled, calculatedColorFA, imageName, scale, slope);
@@ -892,6 +896,7 @@ void DiffusionCore::onCalcIVIM(bool _istoggled)
 	}
 	else
 	{ 
+		Diff_ActiveWdw.removeOne(BUTTON_GROUP_ID + 6);
 		computedIVIM = NULL;
 	}
 	emit SignalTestButtonFired(_istoggled, computedIVIM, imageName_0, scale, slope);
@@ -1057,10 +1062,10 @@ void DiffusionCore::onRecalcAll(int inputSlice)
 
 void DiffusionCore::ComputeCurrentSourceImage(int currentSlice, vtkSmartPointer <vtkImageData> SourceImageData)
 {
-	if (!m_DicomHelper->DicomReader->GetOutput()) return;
+	if (!m_DicomHelper->GetDicomReader()->GetOutput()) return;
 
 	vtkSmartPointer <vtkExtractVOI> ExtractVOI = vtkSmartPointer <vtkExtractVOI>::New();
-	ExtractVOI->SetInputData(m_DicomHelper->DicomReader->GetOutput());
+	ExtractVOI->SetInputData(m_DicomHelper->GetDicomReader()->GetOutput());
 	ExtractVOI->SetVOI(0, this->m_DicomHelper->imageDimensions[0] - 1, 0, this->m_DicomHelper->imageDimensions[1] - 1, currentSlice, currentSlice);
 	ExtractVOI->Update();
 
@@ -1100,7 +1105,7 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, int currentSli
 	//std::cout << "m_DicomHelper numof components" << this->m_DicomHelper->numberOfComponents << std::endl;
 
 	vtkSmartPointer <vtkExtractVOI> ExtractVOI = vtkSmartPointer <vtkExtractVOI>::New();
-	ExtractVOI->SetInputData(dicomData->DicomReader->GetOutput());
+	ExtractVOI->SetInputData(dicomData->GetDicomReader()->GetOutput());
 	ExtractVOI->SetVOI(0, dicomData->imageDimensions[0] - 1, 0, dicomData->imageDimensions[1] - 1, currentSlice, currentSlice);
 	ExtractVOI->Update();
 	//std::cout << "---------------------------- VOI is correct ? ---------------------" << std::endl;
@@ -1179,7 +1184,6 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, int currentSli
 
 	//itk version of DeepCopy	
 	_MaskVectorImage->SetSpacing(maskFilter->GetOutput()->GetSpacing());
-	qDebug() << "vector image spacing = " << maskFilter->GetOutput()->GetSpacing()[0] << "-" << maskFilter->GetOutput()->GetSpacing()[1];
 	_MaskVectorImage->SetOrigin(maskFilter->GetOutput()->GetOrigin());
 	_MaskVectorImage->SetDirection(maskFilter->GetOutput()->GetDirection());
 	_MaskVectorImage->SetRegions(maskFilter->GetOutput()->GetLargestPossibleRegion());

@@ -29,7 +29,7 @@ Module:    vtkRoiInteractor.cxx
 #include <vtkBoundedPlanePointPlacer.h>
 #include <vtkPlane.h>
 #include <vtkRenderWindow.h>
-
+#include <vtkImageExtractComponents.h>
 //for debug
 #include <vtkRendererCollection.h>
 #include <vtkActor2DCollection.h>
@@ -63,6 +63,7 @@ public:
 		//	return;
 		//}
 
+		
 		vtkContourWidget *contour = reinterpret_cast<vtkContourWidget*>(caller);
 		vtkContourRepresentation *rep = vtkContourRepresentation::SafeDownCast(contour->GetRepresentation());
 		vtkOrientedGlyphContourRepresentation *glyContour =
@@ -79,7 +80,7 @@ public:
 		//rep->GetNodePolyData(path);
 		//contourActor = rep->GetContourRepresentationAsPolyData();
 		//std::cout << "After close There are " << path->GetNumberOfPoints() << " points in the path." << std::endl;		
-		std::cout << "After close There are " << glyContour->GetNumberOfNodes() << " nodes and " << glyContour->GetNumberOfPaths() << " path" << std::endl;
+		//std::cout << "After close There are " << glyContour->GetNumberOfNodes() << " nodes and " << glyContour->GetNumberOfPaths() << " path" << std::endl;		
 		//double* coordinate;
 		//coordinate = contourActor->GetPoint(5);
 		//cout << "point 5 " << coordinate[0] <<"," <<coordinate[1] << "," << coordinate[2] << endl;
@@ -114,6 +115,8 @@ public:
 			}
 		}
 
+		qDebug() << "<<<<<< ENTERING CALLBACK OF " << parentItem->parent()->text() << "with MODE: " << RoiMode ;
+
 		vtkSmartPointer<vtkPolyData> path =
 			vtkSmartPointer<vtkPolyData>::New();
 		//_tracer->GetPath(path);
@@ -127,122 +130,182 @@ public:
 		polyDataToImageStencil->SetOutputSpacing(o_image->GetSpacing());
 		polyDataToImageStencil->SetOutputWholeExtent(o_image->GetExtent());
 		polyDataToImageStencil->Update();
-
-		vtkSmartPointer<vtkImageAccumulate> imageAccumulate =
-			vtkSmartPointer<vtkImageAccumulate>::New();
-		imageAccumulate->SetStencilData(polyDataToImageStencil->GetOutput());
-		imageAccumulate->SetInputData(o_image);
-		//imageAccumulate->SetInputData(_image);
-		imageAccumulate->Update();
-
-		float thisArea = imageAccumulate->GetVoxelCount()*o_image->GetSpacing()[0] * o_image->GetSpacing()[1] * o_image->GetSpacing()[2];
 		
-		//*****temporary fix block: fix the error of area calc:
-		thisArea = (imageName == QString("Source") )? thisArea / 2 : thisArea;
-		if (parentItem->hasChildren()){
-			for (int i = 0; i < parentItem->child(0)->rowCount(); i++)
+		//
+		//3. Edit ROI tree model 
+		//
+		int numComp = o_image->GetNumberOfScalarComponents();
+		vtkSmartPointer <vtkImageExtractComponents> scalarComponent = vtkSmartPointer <vtkImageExtractComponents>::New();
+		vtkSmartPointer<vtkImageAccumulate> imageAccumulate = vtkSmartPointer<vtkImageAccumulate>::New();
+
+		for (int thisComp = 0; thisComp < numComp; thisComp++)
+		{			
+			
+			scalarComponent->SetInputData(o_image);
+			scalarComponent->SetComponents(thisComp);
+			scalarComponent->Update();						
+			
+			imageAccumulate->SetStencilData(polyDataToImageStencil->GetOutput());
+			imageAccumulate->SetInputData(scalarComponent->GetOutput());
+			imageAccumulate->Update();
+
+
+			float thisArea = imageAccumulate->GetVoxelCount()*o_image->GetSpacing()[0] * o_image->GetSpacing()[1] * o_image->GetSpacing()[2];
+
+			//*****temporary fix block: fix the error of area calc:		
+			
+			//if (parentItem->hasChildren()){
+			//	for (int i = 0; i < parentItem->child(0)->rowCount(); i++)
+			//	{
+			//		if (sliceNum == parentItem->child(0)->child(i)->text().toInt())
+			//		{
+			//			thisArea = parentItem->child(0)->child(i, 1)->text().toFloat();
+			//		}
+			//	}
+			//}
+
+			//*******temporary fix block ends
+
+			float thisMean = *imageAccumulate->GetMean()*scalingValue + shiftValue;
+			float thisstd = *imageAccumulate->GetStandardDeviation()*scalingValue + shiftValue;
+			float thisMin = *imageAccumulate->GetMin()*scalingValue + shiftValue;
+			float thisMax = *imageAccumulate->GetMax()*scalingValue + shiftValue;
+
+			qDebug() << "[Component " << thisComp + 1 <<" of "<<numComp<< "] "<< "[slice " << sliceNum << "] " 
+				<< thisArea << thisMean << thisstd << thisMin << thisMax;
+
+			QList<QStandardItem *> slcRow;
+			slcRow << new QStandardItem(QString("%1").arg(sliceNum));
+			slcRow << new QStandardItem(QString("%1").arg(thisArea));
+			slcRow << new QStandardItem(QString("%1 (%2)").arg(thisMean).arg(thisstd));
+			slcRow << new QStandardItem(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
+
+			//qDebug() << "handling window "<<imageName<<"parent node is" << parentItem->text();
+			//qDebug() << imageAccumulate->GetVoxelCount() << " * " << o_image->GetSpacing()[0] << "-" << o_image->GetSpacing()[1] << "-" << o_image->GetSpacing()[2];
+			//qDebug() << " of " << o_image->GetDimensions()[0] << "-" << o_image->GetDimensions()[1]<<"-" << o_image->GetDimensions()[2];
+			if (RoiMode == 0) //init ROI
 			{
-				if (sliceNum == parentItem->child(0)->child(i)->text().toInt())
+				
+
+				QStandardItem* imageRoot = parentItem->parent();
+				qDebug() << "Init a new ROI " << parentItem->index().row() << " on " << imageRoot->text() << "Slice " << sliceNum;
+
+				//QList<QStandardItem *> imgRow;
+				//imgRow << new QStandardItem(imageName);
+				//imgRow << new QStandardItem(QString("%1").arg(thisArea));
+				//imgRow << new QStandardItem(QString("%1 (%2)").arg(thisMean).arg(thisstd));
+				//imgRow << new QStandardItem(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
+				//parentItem->appendRow(imgRow);
+				if (numComp > 1)
 				{
-					thisArea = parentItem->child(0)->child(i, 1)->text().toFloat();					
+					imageRoot->child(parentItem->index().row(), 1)->setText(QString("%1").arg(0));
+					imageRoot->child(parentItem->index().row(), 2)->setText(QString("%1 (%2)").arg(0.0).arg(0.0));
+					imageRoot->child(parentItem->index().row(), 3)->setText(QString("%1 ~ %2").arg(0.0).arg(0.0));
+
+					QList<QStandardItem *> compRow;
+					compRow << new QStandardItem(QString("IMAGE_%1").arg(thisComp));
+					compRow << new QStandardItem(QString("%1").arg(thisArea));
+					compRow << new QStandardItem(QString("%1 (%2)").arg(thisMean).arg(thisstd));
+					compRow << new QStandardItem(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
+					parentItem->appendRow(compRow);
+					compRow.first()->appendRow(slcRow);
 				}
+				else{
+					imageRoot->child(parentItem->index().row(), 1)->setText(QString("%1").arg(thisArea));
+					imageRoot->child(parentItem->index().row(), 2)->setText(QString("%1 (%2)").arg(thisMean).arg(thisstd));
+					imageRoot->child(parentItem->index().row(), 3)->setText(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
+					parentItem->appendRow(slcRow);
+				}				
 			}
-		}
-		//*******temporary fix block ends
-
-		float thisMean = *imageAccumulate->GetMean()*scalingValue + shiftValue;
-		float thisstd = *imageAccumulate->GetStandardDeviation()*scalingValue + shiftValue;
-		float thisMin = *imageAccumulate->GetMin()*scalingValue + shiftValue;
-		float thisMax = *imageAccumulate->GetMax()*scalingValue + shiftValue;
-
-		qDebug() << "slice info: " << thisArea << thisMean << thisstd << thisMin << thisMax;
-
-		QList<QStandardItem *> slcRow;
-		slcRow << new QStandardItem(QString("%1").arg(sliceNum));
-		slcRow << new QStandardItem(QString("%1").arg(thisArea));
-		slcRow << new QStandardItem(QString("%1 (%2)").arg(thisMean).arg(thisstd));
-		slcRow << new QStandardItem(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
-
-		//qDebug() << "handling window "<<imageName<<"parent node is" << parentItem->text();
-		qDebug() << imageAccumulate->GetVoxelCount() << " * " << o_image->GetSpacing()[0] << "-" << o_image->GetSpacing()[1] << "-" << o_image->GetSpacing()[2];
-		//qDebug() << " of " << o_image->GetDimensions()[0] << "-" << o_image->GetDimensions()[1]<<"-" << o_image->GetDimensions()[2];
-		if (RoiMode == 0) //init ROI
-		{
-			qDebug() << "ROImode = init";
-
-			//1. Create ImageName Branch first
-			QList<QStandardItem *> imgRow;
-			imgRow << new QStandardItem(imageName);
-			imgRow << new QStandardItem(QString("%1").arg(thisArea));
-			imgRow << new QStandardItem(QString("%1 (%2)").arg(thisMean).arg(thisstd));
-			imgRow << new QStandardItem(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
-			parentItem->appendRow(imgRow);
-
-			//2. Append slice Branch
-			imgRow.first()->appendRow(slcRow);
-		}
-		else
-		{
-
-			//1. locate ImageName Branch 
-			int ImageRowInd(-10);
-			for (int i = 0; i < parentItem->rowCount(); i++)
+			else
 			{
-				if (imageName == parentItem->child(i)->text())
-				{
-					qDebug() << "found ROW of " << imageName << "at row:" << i;
-					ImageRowInd = i;
-				}
-			}
+				//parentItem->sortChildren(0);
+				////1. locate Component Branch 
+				//int ImageRowInd(-10);
+				//for (int i = 0; i < parentItem->rowCount(); i++)
+				//{
+				//	if (imageName == parentItem->child(i)->text())
+				//	{
+				//		qDebug() << "found ROW of " << imageName << "at row:" << i;
+				//		ImageRowInd = i;
+				//	}
+				//}
 
-			if (ImageRowInd >= 0) //if such image name exists
-			{
-				//2. locate ImageName Branch			
-				if (RoiMode == 1)//append ROI: add a slice row
+				if (numComp > 1) //if this image has multiple component;
 				{
-					qDebug() << "ROImode = append";
-					parentItem->child(ImageRowInd)->appendRow(slcRow);
-				}
-				else if (RoiMode == 2) //edit ROI:: edit existing slic Row
-				{
-					qDebug() << "ROImode = edit";
-					for (int i = 0; i < parentItem->child(ImageRowInd)->rowCount(); i++)
+					//2. locate ImageName Branch			
+					if (RoiMode == 1)//append ROI: add a slice row
 					{
-						if (sliceNum == parentItem->child(ImageRowInd)->child(i)->text().toInt())
-						{
-							parentItem->child(ImageRowInd)->child(i, 1)->setText(QString("%1").arg(thisArea));
-							parentItem->child(ImageRowInd)->child(i, 2)->setText(QString("%1 (%2)").arg(thisMean).arg(thisstd));
-							parentItem->child(ImageRowInd)->child(i, 3)->setText(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
-						}
+						qDebug() << "ROImode = append";
+						parentItem->child(thisComp)->appendRow(slcRow);
 					}
+					else if (RoiMode == 2) //edit ROI:: edit existing slic Row
+					{
+						qDebug() << "ROImode = edit";
+						for (int i = 0; i < parentItem->child(thisComp)->rowCount(); i++)
+						{
+							if (sliceNum == parentItem->child(thisComp)->child(i)->text().toInt())
+							{
+								parentItem->child(thisComp)->child(i, 1)->setText(QString("%1").arg(thisArea));
+								parentItem->child(thisComp)->child(i, 2)->setText(QString("%1 (%2)").arg(thisMean).arg(thisstd));
+								parentItem->child(thisComp)->child(i, 3)->setText(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
+							}
+						}
 
+					}
+					else
+					{
+						qDebug() << "wrong roi mode";
+					}
+					//3. update ImageName Branch
+					parentItem->child(thisComp)->sortChildren(0);
+					updateImageRow(parentItem->child(thisComp));
 				}
-				else
+				else //if this image has only 1 component
 				{
-					qDebug() << "wrong roi mode";
-				}
-				//3. update ImageName Branch
-				parentItem->child(ImageRowInd)->sortChildren(0);
-				updateImageRow(ImageRowInd);
-			}
-			else //if no such image name exists, this window must be added new. considerit as init widget
-			{
-				qDebug() << "edit/append roimode, though no such image exists,creating new";
-				//1. Create ImageName Branch first
-				QList<QStandardItem *> imgRow;
-				imgRow << new QStandardItem(imageName);
-				imgRow << new QStandardItem(QString("%1").arg(thisArea));
-				imgRow << new QStandardItem(QString("%1 (%2)").arg(thisMean).arg(thisstd));
-				imgRow << new QStandardItem(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
-				parentItem->appendRow(imgRow);
+					//2. locate ImageName Branch			
+					if (RoiMode == 1)//append ROI: add a slice row
+					{
+						qDebug() << "ROImode = append";
+						parentItem->appendRow(slcRow);
+					}
+					else if (RoiMode == 2) //edit ROI:: edit existing slic Row
+					{
+						qDebug() << "ROImode = edit";
+						for (int i = 0; i < parentItem->rowCount(); i++)
+						{
+							if (sliceNum == parentItem->child(i)->text().toInt())
+							{
+								parentItem->child(i, 1)->setText(QString("%1").arg(thisArea));
+								parentItem->child(i, 2)->setText(QString("%1 (%2)").arg(thisMean).arg(thisstd));
+								parentItem->child(i, 3)->setText(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
+							}
+						}
 
-				//2. Append slice Branch
-				imgRow.first()->appendRow(slcRow);
+					}
+					else
+					{
+						qDebug() << "wrong roi mode";
+					}
+					//3. update ImageName Branch
+					parentItem->sortChildren(0);
+					updateImageRow(parentItem);
+
+					//qDebug() << "edit/append roimode, though no such image exists,creating new";
+					////1. Create ImageName Branch first
+					//QList<QStandardItem *> imgRow;
+					//imgRow << new QStandardItem(imageName);
+					//imgRow << new QStandardItem(QString("%1").arg(thisArea));
+					//imgRow << new QStandardItem(QString("%1 (%2)").arg(thisMean).arg(thisstd));
+					//imgRow << new QStandardItem(QString("%1 ~ %2").arg(thisMin).arg(thisMax));
+					//parentItem->appendRow(imgRow);
+
+					////2. Append slice Branch
+					//imgRow.first()->appendRow(slcRow);
+				}
 			}
 		}
-
-		qDebug() << imageName <<" callback finished";	
-
+		qDebug() << ">>>>>> "<< imageName <<" CALLBACK FINISHED";	
 	}
 
 
@@ -263,9 +326,9 @@ public:
 		//cout << *rowHead << endl;
 	};
 
-	void updateImageRow(int ImageRowInd)
+	void updateImageRow(QStandardItem* branchroot)
 	{
-		QStandardItem* branchroot = parentItem->child(ImageRowInd);
+		//QStandardItem* branchroot = parentItem->child(ImageRowInd);
 		//qDebug() << "update image row: " << branchroot->rowCount();
 		float AreaSum(0.0), MeanSum(0.0), StdSum(0.0), MinSum(500000000000.0), MaxSum(0.0);
 		for (int i = 0; i < branchroot->rowCount(); i++)
@@ -291,9 +354,10 @@ public:
 			MaxSum = std::max(sMax, MaxSum);
 		}
 		qDebug() << "roi info: " << AreaSum << MeanSum << StdSum << MinSum << MaxSum;
-		parentItem->child(ImageRowInd, 1)->setText(QString("%1").arg(AreaSum));
-		parentItem->child(ImageRowInd, 2)->setText(QString("%1 (%2)").arg(MeanSum).arg(StdSum));
-		parentItem->child(ImageRowInd, 3)->setText(QString("%1 ~ %2").arg(MinSum).arg(MaxSum));
+		QStandardItem* parentRoot = branchroot->parent();
+		parentRoot->child(branchroot->index().row(), 1)->setText(QString("%1").arg(AreaSum));
+		parentRoot->child(branchroot->index().row(), 2)->setText(QString("%1 (%2)").arg(MeanSum).arg(StdSum));
+		parentRoot->child(branchroot->index().row(), 3)->setText(QString("%1 ~ %2").arg(MinSum).arg(MaxSum));
 	};
 protected:
 	float scalingValue;

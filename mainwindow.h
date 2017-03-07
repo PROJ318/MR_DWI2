@@ -129,6 +129,7 @@ signals:
 
 	void onAddRoiChart(bool);
 	//void OnStartDicomExport(QString directory);
+	void onAddRoiBar(bool);
 
 protected:
 
