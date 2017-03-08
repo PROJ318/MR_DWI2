@@ -356,9 +356,9 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	sliceTextProp->SetJustificationToLeft();
 	
 	vtkSmartPointer<vtkTextMapper> sliceTextMapper = vtkSmartPointer<vtkTextMapper>::New();
-	//std::string msg = imageLabel.compare("Source") == 0 ?
-	//	myStatusMessage::Format(m_SourceImageCurrentSlice, m_SourceImageMaxSlice, m_SourceImageCurrentComponent,m_DicomHelper->BvalueList) : imageLabel;
-	std::string msg = "killingMe";
+	std::string msg = imageLabel.compare("Source") == 0 ?
+		myStatusMessage::Format(m_SourceImageCurrentSlice, m_SourceImageMaxSlice, m_SourceImageCurrentComponent, m_DicomHelper-> componentTextInfoList) : imageLabel;
+	//std::string msg = "killingMe";
 	sliceTextMapper->SetInput(msg.c_str());
 	sliceTextMapper->SetTextProperty(sliceTextProp);
 
@@ -400,7 +400,7 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	if (imageLabel.compare("Source") == 0)
 	{
 		//std::cout << "=========== Number of components =  " << imageData->GetNumberOfScalarComponents() << std::endl;
-		//myInteractorStyle->SetStatusMessageInfo(sliceTextMapper,m_SourceImageCurrentSlice, m_SourceImageMaxSlice, m_SourceImageCurrentComponent, m_DicomHelper->BvalueList);
+		myInteractorStyle->SetStatusMessageInfo(sliceTextMapper,m_SourceImageCurrentSlice, m_SourceImageMaxSlice, m_SourceImageCurrentComponent, m_DicomHelper->componentTextInfoList);
 		
 		vtkSmartPointer <vtkImageExtractComponents> scalarComponent = vtkSmartPointer <vtkImageExtractComponents>::New();
 		scalarComponent->SetInputData(imageData);
@@ -1199,7 +1199,7 @@ void MainWindow::onAddRoiChart(bool _toggle)
 				QSplineSeries *line = new QSplineSeries;
 				QScatterSeries *point = new QScatterSeries;
 				line->setName(hookitem->child(i)->text());
-				point->setName(hookitem->child(i)->text());
+				point->setName(hookitem->child(i)->text()+QString("-data"));
 				point->setMarkerSize(5.0);
 				for (int j = 0; j < hookitem->child(i)->rowCount(); j++)
 				{

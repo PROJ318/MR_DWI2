@@ -63,13 +63,13 @@ void myVtkInteractorStyleImage::SetImageViewer(vtkImageViewer2* imageViewer)
 	//cout << "Slicer: Min = " << _MinSlice << ", Max = " << _MaxSlice << std::endl;
 }
 
-void myVtkInteractorStyleImage::SetStatusMessageInfo(vtkTextMapper* statusMapper, int & currentSlice, int maxSlice, int & currentComponent, std::vector <float> bValueList)
+void myVtkInteractorStyleImage::SetStatusMessageInfo(vtkTextMapper* statusMapper, int & currentSlice, int maxSlice, int & currentComponent, std::vector <std::string> componentInfo)
 {
 	_StatusMapper = statusMapper;
 	_CurrentSlice = &currentSlice;
 	_CurrentComponent = &currentComponent;
 	_MaxSlice = maxSlice;
-	_BValueList = bValueList;
+	_ComponentInfo = componentInfo;
 }
 
 void myVtkInteractorStyleImage::SetDefaultWindowLevel()
@@ -192,7 +192,7 @@ void myVtkInteractorStyleImage::MoveSliceComponentForward()
 	cout << "MoveSliceComponentForward: Component = " << *_CurrentComponent << std::endl;
 
 	//update Status Message
-	std::string statusMsg = myStatusMessage::Format(*_CurrentSlice, _MaxSlice, *_CurrentComponent, _BValueList);
+	std::string statusMsg = myStatusMessage::Format(*_CurrentSlice, _MaxSlice, *_CurrentComponent, _ComponentInfo);
 	_StatusMapper->SetInput(statusMsg.c_str());
 
 	//update image
@@ -217,8 +217,8 @@ void myVtkInteractorStyleImage::MoveSliceComponentBackward()
 		cout << "MoveSliceComponentBackward: Current Component = " << *_CurrentComponent << " Number of Components = " << _OriginalInputImageData->GetNumberOfScalarComponents() << std::endl;
 		
 		//update Status Message
-		//std::string statusMsg = myStatusMessage::Format(*_CurrentSlice, _MaxSlice, *_CurrentComponent, _BValueList);
-		//_StatusMapper->SetInput(statusMsg.c_str());
+		std::string statusMsg = myStatusMessage::Format(*_CurrentSlice, _MaxSlice, *_CurrentComponent, _ComponentInfo);
+		_StatusMapper->SetInput(statusMsg.c_str());
 
 		//update image		
 		vtkSmartPointer <vtkImageExtractComponents> scalarComponent = vtkSmartPointer <vtkImageExtractComponents>::New();

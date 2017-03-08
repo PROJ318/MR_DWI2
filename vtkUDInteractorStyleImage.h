@@ -44,11 +44,11 @@ public:
 		return statusMessage;
 	}
 
-	static std::string Format(int slice, int maxSlice, int component, std::vector <float> bValueList)
+	static std::string Format(int slice, int maxSlice, int component, std::vector <std::string> componentInfo)
 	{
 		std::stringstream msg;
 		msg << "Slice Number: " << slice + 1 << "/" << maxSlice + 1 << "\n" 
-			<< "b Value:    " << bValueList.at(component) << "s/mm2";
+			<< componentInfo.at(component);
 		return msg.str();
 	}
 };
@@ -75,7 +75,7 @@ protected:
 	//int _Component;
 	int _MaxComponent;
 	bool _ColorImage;
-	std::vector <float> _BValueList;
+	std::vector <std::string> _ComponentInfo;
 
 	vtkImageActor* _imageActor;
 	vtkSmartPointer<vtkImageData> _OriginalInputImageData;
@@ -86,7 +86,7 @@ protected:
 
 public:
 	void SetImageViewer(vtkImageViewer2* imageViewer);
-	void SetStatusMessageInfo(vtkTextMapper* statusMapper,int & currentSlice, int maxSlice, int & currentComponent, std::vector <float> bValueList);
+	void SetStatusMessageInfo(vtkTextMapper* statusMapper, int & currentSlice, int maxSlice, int & currentComponent, std::vector <std::string> _ComponentInfo);
 	//void InitialSlice(int minSlice, int maxSlice)
 	//{
 	//	_MinSlice = minSlice;

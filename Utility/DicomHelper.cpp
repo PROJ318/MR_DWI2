@@ -230,8 +230,15 @@ void DicomHelper::DiffusionInfo(vtkDICOMMetaData* metaData,
 
 	int numOfGradDir = this->numberOfGradDirection;
 	if (this->IsoImageLabel > -1) numOfGradDir += 1;
-	this->SortingSourceImage(imageData, this->BvalueList, numOfGradDir);
+	this->SortingSourceImage(imageData, &BvalueList, numOfGradDir);
 
+	//Add component Info for status bar
+	for (int i = 0; i < BvalueList.size(); i++)
+	{
+		std::stringstream tmpMSG;
+		tmpMSG << "b Value: " << BvalueList.at(i) << "s/mm2";
+		componentTextInfoList.push_back(tmpMSG.str());
+	}
 
 };
 
@@ -251,7 +258,14 @@ void DicomHelper::PerfusionInfo(vtkDICOMMetaData* metaData,
 
 	}
 
-	this->SortingSourceImage(imageData, this->dynamicTime, 1);//the third parameter usded for diffusion gradient direction number
+	this->SortingSourceImage(imageData, &dynamicTime, 1);//the third parameter usded for diffusion gradient direction number
+	//Add component Info for status bar
+	for (int i = 0; i < dynamicTime.size(); i++)
+	{
+		std::stringstream tmpMSG;
+		tmpMSG << "Dynamic time: " << dynamicTime.at(i) << "ms";
+		componentTextInfoList.push_back(tmpMSG.str());
+	}
 };
 
 void DicomHelper::CalculateFinalHMatrix()
@@ -364,26 +378,26 @@ vtkDICOMValue DicomHelper::GetAttributeValue(vtkDICOMMetaData* metaData, vtkDICO
 
 }
 
-void DicomHelper::SortingSourceImage(vtkImageData* sourceData, std::vector<float> basedVector, int secondOrderNumber)
+void DicomHelper::SortingSourceImage(vtkImageData* sourceData, std::vector<float> *basedVector, int secondOrderNumber)
 {
 	//sorting b value list from small to larger using vector Pair sort.
 	//which can get the sorted index array. it can be used for the 
 	//source image sorting.
 	std::vector< std::pair<float, int> > vectorPair;
-	int length = basedVector.size();
+	int length = (*basedVector).size();
 	std::vector<int> paraOrderIndex(length);
 
 	for (int i = 0; i < length; i++)
 	{
 		paraOrderIndex[i] = i;
-		vectorPair.push_back(std::make_pair(basedVector[i], paraOrderIndex[i]));
+		vectorPair.push_back(std::make_pair((*basedVector)[i], paraOrderIndex[i]));
 	}
 	std::stable_sort(vectorPair.begin(), vectorPair.end(), cmp);
 
 	for (int i = 0; i < length; i++)
 	{
 		cout << "value:" << vectorPair[i].first << "index:" << vectorPair[i].second << endl;
-		basedVector[i] = vectorPair[i].first;
+		(*basedVector)[i] = vectorPair[i].first;
 		paraOrderIndex[i] = vectorPair[i].second;
 	}
 
