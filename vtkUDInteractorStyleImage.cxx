@@ -29,9 +29,12 @@ myVtkInteractorStyleImage::myVtkInteractorStyleImage()
 {
 	//roiInteraction = vtkRoiInteractor::New();
 	_ImageViewer = vtkSmartPointer<vtkImageViewer2>::New();
-	//_StatusMapper = vtkSmartPointer<vtkTextMapper>::New();
+	_StatusMapper = vtkSmartPointer<vtkTextMapper>::New();
 	_OriginalInputImageData = vtkSmartPointer<vtkImageData>::New();
-	_Component = 0;
+	_CurrentSlice = NULL;
+	_MaxSlice = 0;
+	_CurrentComponent = NULL;
+	_MaxComponent = 0;
 	_ColorImage = false;
 }
 
@@ -55,9 +58,18 @@ void myVtkInteractorStyleImage::SetImageViewer(vtkImageViewer2* imageViewer)
 	_MaxComponent = imageViewer->GetInput()->GetNumberOfScalarComponents() - 1;
 	//We can also use imageViewer->GetRenderWindow()->GetWindowName();
 	_ColorImage = imageViewer->GetInput()->GetScalarType() == 3 ? true : false;//3 is unsigned char, it is used exclusively for Color image data
-	SetDefaultWindowLevel();
+	this->SetDefaultWindowLevel();
 
 	//cout << "Slicer: Min = " << _MinSlice << ", Max = " << _MaxSlice << std::endl;
+}
+
+void myVtkInteractorStyleImage::SetStatusMessageInfo(vtkTextMapper* statusMapper, int & currentSlice, int maxSlice, int & currentComponent, std::vector <float> bValueList)
+{
+	_StatusMapper = statusMapper;
+	_CurrentSlice = &currentSlice;
+	_CurrentComponent = &currentComponent;
+	_MaxSlice = maxSlice;
+	_BValueList = bValueList;
 }
 
 void myVtkInteractorStyleImage::SetDefaultWindowLevel()
@@ -72,6 +84,8 @@ void myVtkInteractorStyleImage::SetDefaultWindowLevel()
 
 	_ImageViewer->SetColorWindow(colorWindow);
 	_ImageViewer->SetColorLevel(colorLevel);
+	//Delete pointer here would result in software error
+	//delete[] imageDataRange;
 }
 
 void myVtkInteractorStyleImage::MoveSliceForward()
@@ -171,44 +185,50 @@ void myVtkInteractorStyleImage::MoveSliceBackward()
 
 void myVtkInteractorStyleImage::MoveSliceComponentForward()
 {
-	if (_ColorImage || _Component >= _MaxComponent) return;
+	if (_ColorImage || *_CurrentComponent >= _MaxComponent) return;
 
-	//if (_Component < _MaxComponent)
-	//{
-	_Component++;
+	(*_CurrentComponent)++;
 
-	cout << "MoveSliceComponentForward: Component = " << _Component << std::endl;
+	cout << "MoveSliceComponentForward: Component = " << *_CurrentComponent << std::endl;
 
+	//update Status Message
+	std::string statusMsg = myStatusMessage::Format(*_CurrentSlice, _MaxSlice, *_CurrentComponent, _BValueList);
+	_StatusMapper->SetInput(statusMsg.c_str());
+
+	//update image
 	vtkSmartPointer <vtkImageExtractComponents> scalarComponent = vtkSmartPointer <vtkImageExtractComponents>::New();
 	scalarComponent->SetInputData(_OriginalInputImageData);
-	scalarComponent->SetComponents(_Component);
+	scalarComponent->SetComponents(*_CurrentComponent);
 	scalarComponent->Update();
 	_ImageViewer->SetInputData(scalarComponent->GetOutput());
 	SetDefaultWindowLevel();
 	//_ImageViewer->SetSlice(_Slice);
 	_ImageViewer->GetRenderWindow()->Render();
 
-	//Needed to set input back???
-	//_ImageViewer->SetInputData(_OriginalInputImageData);
-	//}
 }
 
 void myVtkInteractorStyleImage::MoveSliceComponentBackward()
 {
-	if (_ColorImage || _Component == 0) return;
+	if (_ColorImage || *_CurrentComponent == 0) return;
 	//if (_Component > 0)
 	//{
-	_Component--;
-	//_OriginalInputImageData->GetNumberOfScalarComponents();
-	cout << "MoveSliceComponentBackward: Current Component = " << _Component << " Number of Components = " << _OriginalInputImageData->GetNumberOfScalarComponents() << std::endl;
-	vtkSmartPointer <vtkImageExtractComponents> scalarComponent = vtkSmartPointer <vtkImageExtractComponents>::New();
-	scalarComponent->SetInputData(_OriginalInputImageData);
-	scalarComponent->SetComponents(_Component);
-	scalarComponent->Update();
+		(*_CurrentComponent)--;
+		//_OriginalInputImageData->GetNumberOfScalarComponents();
+		cout << "MoveSliceComponentBackward: Current Component = " << *_CurrentComponent << " Number of Components = " << _OriginalInputImageData->GetNumberOfScalarComponents() << std::endl;
+		
+		//update Status Message
+		//std::string statusMsg = myStatusMessage::Format(*_CurrentSlice, _MaxSlice, *_CurrentComponent, _BValueList);
+		//_StatusMapper->SetInput(statusMsg.c_str());
 
-	_ImageViewer->SetInputData(scalarComponent->GetOutput());
-	SetDefaultWindowLevel();
-	_ImageViewer->GetRenderWindow()->Render();
+		//update image		
+		vtkSmartPointer <vtkImageExtractComponents> scalarComponent = vtkSmartPointer <vtkImageExtractComponents>::New();
+		scalarComponent->SetInputData(_OriginalInputImageData);
+		scalarComponent->SetComponents(*_CurrentComponent);
+		scalarComponent->Update();
+
+		_ImageViewer->SetInputData(scalarComponent->GetOutput());
+		SetDefaultWindowLevel();
+		_ImageViewer->GetRenderWindow()->Render();
 	//}
 }
 
@@ -234,8 +254,6 @@ void myVtkInteractorStyleImage::OnKeyDown() {
 }
 
 void myVtkInteractorStyleImage::OnMouseWheelForward() {
-	if (_CurrentSlice != NULL)
-		MoveSliceForward();
 	// don't forward events, otherwise the image will be zoomed 
 	// in case another interactorstyle is used (e.g. trackballstyle, ...)
 	//vtkInteractorStyleImage::OnMouseWheelForward();
@@ -243,15 +261,12 @@ void myVtkInteractorStyleImage::OnMouseWheelForward() {
 
 void myVtkInteractorStyleImage::OnMouseWheelBackward() {
 	//std::cout << "Scrolled mouse wheel backward." << std::endl;
-	if (_CurrentSlice != NULL) {
-		MoveSliceBackward();
-	}
 	// don't forward events, otherwise the image will be zoomed 
 	// in case another interactorstyle is used (e.g. trackballstyle, ...)
 	//vtkInteractorStyleImage::OnMouseWheelBackward();
 }
 
-//Right button click for deleting the choosed ROI, add by Wenxing
+//	}//Right button click for deleting the choosed ROI, add by Wenxing
 //void myVtkInteractorStyleImage::OnRightButtonDown()
 //{
 //	int* clickPos = this->GetInteractor()->GetEventPosition();
@@ -272,7 +287,6 @@ void myVtkInteractorStyleImage::OnMouseWheelBackward() {
 //			}
 //			//}
 //		}
-//	}
 //	// forward event
 //	vtkInteractorStyleImage::OnRightButtonDown();
 //
@@ -313,17 +327,19 @@ void myVtkInteractorStyleImage::OnChar()
 
 void myVtkInteractorStyleImage::WindowLevel()
 {
+	//std::cout << "-----------------------window Level event within window-----------------" << std::endl;
 	vtkRenderWindowInteractor *rwi = this->Interactor;
 
 	this->WindowLevelCurrentPosition[0] = rwi->GetEventPosition()[0];
 	this->WindowLevelCurrentPosition[1] = rwi->GetEventPosition()[1];
 
-	if (this->HandleObservers &&
-		this->HasObserver(vtkCommand::WindowLevelEvent))
-	{
-		this->InvokeEvent(vtkCommand::WindowLevelEvent, this);
-	}
-	else if (this->CurrentImageProperty)
+	//if (this->HandleObservers &&
+	//	this->HasObserver(vtkCommand::WindowLevelEvent))
+	//{
+	//	this->InvokeEvent(vtkCommand::WindowLevelEvent, this);
+	//}
+	//else 
+		if (this->CurrentImageProperty)
 	{
 		int *size = this->CurrentRenderer->GetSize();
 
@@ -367,18 +383,28 @@ void myVtkInteractorStyleImage::WindowLevel()
 
 		// Compute new window level
 
-		double newWindow = dx + window;
-		double newLevel = level - dy;
+		//double newWindow = dx + window;
+		//double newLevel = level - dy;
+		double newWindowLevel[2]; 
+		newWindowLevel[0] = dx + window;
+		newWindowLevel[1] = level - dy;
 
-		if (newWindow < 0.01)
+		if (newWindowLevel[0] < 0.01)
 		{
-			newWindow = 0.01;
+			newWindowLevel[0] = 0.01;
 		}
-		newLevel = newLevel < 0.01 ? 0.01 : newLevel;
+		newWindowLevel[1] = newWindowLevel[1] < 0.01 ? 0.01 : newWindowLevel[1];
 
-		this->CurrentImageProperty->SetColorWindow(newWindow);
-		this->CurrentImageProperty->SetColorLevel(newLevel);
+		this->CurrentImageProperty->SetColorWindow(newWindowLevel[0]);
+		this->CurrentImageProperty->SetColorLevel(newWindowLevel[1]);
 		this->Interactor->Render();
+		this->GetImageViewer2()->GetColorWindow();
+		this->GetImageViewer2()->GetColorLevel();
+
+		//double imageViewer2WindowLevel
+		//std::cout << "new window & level " << newWindowLevel[0] << " x " << newWindowLevel[1] << std::endl;
+		//std::cout << "-----------------------invoke interactor windowlevel event-----------------" << std::endl;
+		//this->Interactor->InvokeEvent(vtkCommand::WindowLevelEvent, newWindowLevel);
 	}
 };
 

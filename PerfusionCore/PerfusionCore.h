@@ -90,6 +90,7 @@ signals:
 
 protected:
 	void PerfusionCalculator(vtkSmartPointer <vtkImageData> imageData, float& scale, float& slope, int index);
+	void ComputeCurrentSourceImage(int currentSlice, vtkSmartPointer <vtkImageData> SourceImageData);
 
 protected:
 	Ui::PerfusionModule* m_Controls;

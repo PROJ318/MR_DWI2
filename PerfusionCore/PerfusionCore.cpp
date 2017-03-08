@@ -56,7 +56,9 @@ void PerfusionCore::onSetSourceImage(DicomHelper* dicomData, int inputSlice)
 {
 
 	m_DicomHelper = dicomData;
-	if (m_DicomHelper->imageDataType != "PERFUSION")
+	std::cout << m_DicomHelper->imageDataType;
+
+	if (m_DicomHelper->imageDataType.compare("PERFUSION") != 0)
 	{
 		cout << "not PERFUSION" << endl;
 		return;
@@ -547,6 +549,25 @@ void PerfusionCore::onThreshSlide(double maskThreshold) //SLOT of cdwiToggle
 	PerfusionCore::onRecalcAll(m_CurrentSlice);
 }
 
+void PerfusionCore::ComputeCurrentSourceImage(int currentSlice, vtkSmartPointer <vtkImageData> SourceImageData)
+{
+	if (!m_DicomHelper->GetDicomReader()->GetOutput()) return;
+
+	vtkSmartPointer <vtkExtractVOI> ExtractVOI = vtkSmartPointer <vtkExtractVOI>::New();
+	ExtractVOI->SetInputData(m_DicomHelper->GetDicomReader()->GetOutput());
+	ExtractVOI->SetVOI(0, this->m_DicomHelper->imageDimensions[0] - 1, 0, this->m_DicomHelper->imageDimensions[1] - 1, currentSlice, currentSlice);
+	ExtractVOI->Update();
+
+	//Maybe we can make use of the extent info here rather than set it back to 0 via changeInformationFiter
+	vtkSmartPointer <vtkImageChangeInformation> changeInfo = vtkSmartPointer <vtkImageChangeInformation>::New();
+	changeInfo->SetInputData(ExtractVOI->GetOutput());
+	changeInfo->SetOutputOrigin(0, 0, 0);
+	changeInfo->SetExtentTranslation(0, 0, -currentSlice);
+	changeInfo->Update();
+
+	SourceImageData->DeepCopy(changeInfo->GetOutput());
+}
+
 void PerfusionCore::onRecalcAll(int inputSlice)
 {
 	if (m_DicomHelper->imageDataType == "PERFUSION")
@@ -555,7 +576,10 @@ void PerfusionCore::onRecalcAll(int inputSlice)
 		{
 			//std::cout << "[onRecalcAll] updating slice" << endl;
 			m_CurrentSlice = inputSlice;
+			vtkSmartPointer<vtkImageData> SourceImageSlice = vtkSmartPointer<vtkImageData>::New();
+			ComputeCurrentSourceImage(inputSlice, SourceImageSlice);
 			UpdateMaskVectorImage(m_DicomHelper, this->m_MaskVectorImage);
+			emit SignalTestButtonFired(true, SourceImageSlice, QString("Source"), 1, 0);
 			cout << "end update" << endl;
 			//m_vectorImage.insert(inputSlice, m_MaskVectorImage);
 			if (!this->m_MaskVectorImage) return;

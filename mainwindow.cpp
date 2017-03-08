@@ -77,6 +77,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	this->sourceImage = vtkSmartPointer<vtkImageData>::New();//VTK image pointer
 
 	m_SourceImageCurrentSlice = 0;
+	m_SourceImageCurrentComponent = 0;
 	m_SourceImageMaxSlice = 0;
 	m_SourceImageMinSlice = 0;
 
@@ -317,31 +318,16 @@ void MainWindow::DisplayDicomInfo(vtkSmartPointer <vtkImageData> imageData)
 
 void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, std::string imageLabel)
 {
-	//Is this necessary?
-	//if (qvtkWidget->GetRenderWindow()->GetInteractor())
-	//{
-	//qvtkWidget->GetRenderWindow()->Finalize();
-	//qvtkWidget->GetRenderWindow()->GetInteractor()->ExitCallback();
-	//}
-	//Done inside interacterstyle rather than here, so as to stay the same as in Source image viewer
-	//double *imageDataRange = new double[2];
-	//imageDataRange = imageData->GetScalarRange();//Replace with to be displayed
-	//
-	//double colorWindow, colorLevel;
-	//if (imageData->GetNumberOfScalarComponents() == 3)
-	//{
-	//	//color map 
-	//	colorWindow = 255.0;
-	//	colorLevel = 127.5;
-	//}
-	//else
-	//{
-	//	double *imageDataRange = new double[2];
-	//	imageDataRange = imageData->GetScalarRange();//Replace with to be displayed
-	//	colorWindow = imageDataRange[1] - imageDataRange[2];
-	//	colorLevel = 0.5* (imageDataRange[1] + imageDataRange[0]);
-	//}
+	//handle IVIM window fisrt
+	if (imageLabel.find("IVIM") != std::string::npos)
+	{
+		this->IVIMImageViewer(imageData,qvtkWidget,imageLabel);//DStar
+		std::cout << "IVIM window" << std::endl;
+		return;
+	}
 
+	//handle other image window here
+	//this->DisplayDicomInfo(imageData);
 	vtkSmartPointer<vtkImageViewer2> imageViewer = vtkSmartPointer<vtkImageViewer2>::New();
 	imageViewer->SetInputData(imageData);
 	imageViewer->SetSliceOrientationToXY();
@@ -353,9 +339,11 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	sliceTextProp->SetFontSize(18);
 	sliceTextProp->SetVerticalJustificationToBottom();
 	sliceTextProp->SetJustificationToLeft();
-
+	
 	vtkSmartPointer<vtkTextMapper> sliceTextMapper = vtkSmartPointer<vtkTextMapper>::New();
-	std::string msg = imageLabel.compare("Source") == 0 ? StatusMessage::Format(m_SourceImageCurrentSlice, m_SourceImageMaxSlice) : imageLabel;
+	//std::string msg = imageLabel.compare("Source") == 0 ?
+	//	myStatusMessage::Format(m_SourceImageCurrentSlice, m_SourceImageMaxSlice, m_SourceImageCurrentComponent,m_DicomHelper->BvalueList) : imageLabel;
+	std::string msg = "killingMe";
 	sliceTextMapper->SetInput(msg.c_str());
 	sliceTextMapper->SetTextProperty(sliceTextProp);
 
@@ -392,6 +380,25 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 	//myInteractorStyle->SetStatusMapper(sliceTextMapper);
 	//myInteractorStyle->GetCurrentSliceNumber(m_SourceImageCurrentSlice);
 
+	//Handle multiple componennts in source image, what about mulitple components in derived image window such as color FA, perfusion?
+
+	if (imageLabel.compare("Source") == 0)
+	{
+		//std::cout << "=========== Number of components =  " << imageData->GetNumberOfScalarComponents() << std::endl;
+		//myInteractorStyle->SetStatusMessageInfo(sliceTextMapper,m_SourceImageCurrentSlice, m_SourceImageMaxSlice, m_SourceImageCurrentComponent, m_DicomHelper->BvalueList);
+		
+		vtkSmartPointer <vtkImageExtractComponents> scalarComponent = vtkSmartPointer <vtkImageExtractComponents>::New();
+		scalarComponent->SetInputData(imageData);
+		scalarComponent->SetComponents(m_SourceImageCurrentComponent);
+		scalarComponent->Update();
+		imageViewer->SetInputData(scalarComponent->GetOutput());
+
+		//Reset window level here
+		double *range = scalarComponent->GetOutput()->GetScalarRange();
+		imageViewer->SetColorWindow(range[1] - range[0]);
+		imageViewer->SetColorLevel(0.5*(range[1] + range[0]));
+	}
+	
 	//float scalingPara[2];
 	//scalingPara[0] = 1;
 	//scalingPara[1] = 0;
@@ -487,7 +494,7 @@ void MainWindow::ShareWindowEvent()
 	}
 }
 
-void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, int imageIdx)
+void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, std::string imageLabel)
 {
 	vtkSmartPointer <vtkLookupTable> lookupTable = vtkSmartPointer <vtkLookupTable>::New();
 	lookupTable->SetNumberOfTableValues(256);//try below color range
@@ -502,15 +509,11 @@ void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKW
 	//lookupTable->AddRGBPoint(0,0.0,0.0,1.0);
 	//lookupTable->AddRGBPoint(255, 1.0, 0.0, 0.0);
 	//lookupTable->SetScaleToLinear();
-	vtkSmartPointer <vtkImageExtractComponents> scalarComponent = vtkSmartPointer <vtkImageExtractComponents>::New();
-	scalarComponent->SetInputData(imageData);
-	scalarComponent->SetComponents(imageIdx);
-	scalarComponent->Update();
 
 	vtkSmartPointer <vtkImageMapToColors> scalarValueToColors = vtkSmartPointer <vtkImageMapToColors>::New();
 	scalarValueToColors->SetLookupTable(lookupTable);
 	scalarValueToColors->PassAlphaToOutputOn();
-	scalarValueToColors->SetInputData(scalarComponent->GetOutput());
+	scalarValueToColors->SetInputData(imageData);
 
 	vtkSmartPointer <vtkImageActor> imageActor = vtkSmartPointer <vtkImageActor>::New();
 	imageActor->GetMapper()->SetInputConnection(scalarValueToColors->GetOutputPort());
@@ -525,13 +528,29 @@ void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKW
 	//scalarBar->SetNumberOfLabels(4);//Default is 5
 	scalarBar->SetDrawTickLabels(0);//Disable labels
 
+	if (qvtkWidget->width() > qvtkWidget->height())
+	{
+		//set height = 0.8, width = 0.1
+		scalarBar->SetPosition(0.95, 0.05);
+		scalarBar->SetPosition2(0.99, 0.75);
+	}
+	else
+	{
+		//doesn't work for set image fill window, some bug on qvtkwidget size?
+		double ratio = double(qvtkWidget->width()) / qvtkWidget->height();
+		std::cout << "ratio = " << ratio << std::endl;
+		double centerShift = 0.5 * (qvtkWidget->height() - qvtkWidget->width()) / qvtkWidget->height();
+		scalarBar->SetPosition(0.9, 0.05* ratio + centerShift);
+		scalarBar->SetPosition2(0.9 + 0.05*ratio, 0.75 * ratio + centerShift);
+	}
+
 	//Adjust scalarBar positon according to image Actor
-	//double imageActorPos[3];
+	//double imageActorPos[2];
 	//imageActor->GetPosition(imageActorPos);
-	//double scalarBarPos[1];
-	//scalarBar->GetPosition();
-	//imageActor->GetMaxXBound();
-	//std::cout << "imageActor pos = " << imageActorPos[0] << " " << imageActorPos[1] << " " << imageActorPos[2] << std::endl;
+	////double scalarBarPos[1];
+	////scalarBar->GetPosition();
+	////imageActor->GetMaxXBound();
+	//std::cout << "imageActor pos = " << imageActorPos[0] << " " << imageActorPos[1] << std::endl;
 	//std::cout << "imageActor xBound = " << imageActor->GetMaxXBound() << " " << imageActor->GetMinXBound() << std::endl;
 	//std::cout << "imageActor yBound = " << imageActor->GetMaxYBound() << " " << imageActor->GetMinYBound() << std::endl;
 
@@ -544,17 +563,33 @@ void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKW
 	//scalarBar->GetPositionCoordinate()->SetCoordinateSystemToWorld();
 	//scalarBar->GetPositionCoordinate()->SetValue(0.9 * imageActor->GetMaxXBound(), 0.8 * imageActor->GetMaxXBound());
 
+	//Image label
+	vtkSmartPointer<vtkTextProperty> textProp = vtkSmartPointer<vtkTextProperty>::New();
+	textProp->SetFontFamilyToCourier();
+	textProp->SetFontSize(18);
+	textProp->SetVerticalJustificationToBottom();
+	textProp->SetJustificationToLeft();
+
+	vtkSmartPointer<vtkTextMapper> textMapper = vtkSmartPointer<vtkTextMapper>::New();
+	std::string msg = imageLabel;
+	textMapper->SetInput(msg.c_str());
+	textMapper->SetTextProperty(textProp);
+
+	vtkSmartPointer<vtkActor2D> textActor = vtkSmartPointer<vtkActor2D>::New();
+	textActor->SetMapper(textMapper);
+	textActor->SetPosition(15, 10);
+
 
 	vtkSmartPointer <vtkRenderer> renderer = vtkSmartPointer <vtkRenderer>::New();
-	renderer->AddActor2D(scalarBar);
+	renderer->AddActor(textActor);
+	//renderer->AddActor2D(scalarBar);
 	renderer->AddActor(imageActor);
 	renderer->ResetCamera();
-
 
 	//renderer->SetErase(1);
 	//renderer->GradientBackgroundOn();
 	//renderer->SetBackground2();
-	renderer->SetBackground(0.0, 0.0, 0.0);
+	//renderer->SetBackground(0.0, 0.0, 0.0);
 
 	vtkSmartPointer <vtkRenderWindow> renderWindow = vtkSmartPointer <vtkRenderWindow>::New();
 	renderWindow->AddRenderer(renderer);
@@ -566,20 +601,57 @@ void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKW
 
 	interactor->SetInteractorStyle(interactorStyle);
 
-	qvtkWidget->SetRenderWindow(renderWindow);
-	qvtkWidget->GetRenderWindow()->SetInteractor(interactor);
+	interactor->Initialize();
 
+
+
+	//vtkSmartPointer <vtkShareWindowCallback> shareWindowCallback = vtkSmartPointer <vtkShareWindowCallback>::New();
+	//shareWindowCallback->SetSliceAtrributes(m_SourceImageCurrentSlice, m_SourceImageMinSlice, m_SourceImageMaxSlice);
+	//shareWindowCallback->SetParentWindow(this);
+	//interactor->AddObserver(vtkCommand::MouseWheelForwardEvent, shareWindowCallback);
+	//interactor->AddObserver(vtkCommand::MouseWheelBackwardEvent, shareWindowCallback);
+	//interactor->AddObserver(vtkCommand::TimerEvent, shareWindowCallback);
+
+
+
+
+	qvtkWidget->SetRenderWindow(renderWindow);
+	//Must reset camera and then render to make image visible, maybe because the cameraclippingrange isn't right?
+	qvtkWidget->show();
+
+	//qvtkWidget->GetRenderWindow()->vtkRenderWindow::SetSize(800, 800);
+	//qvtkWidget->GetRenderWindow()->vtkRenderWindow::SetPosition(qvtkWidget->x(), qvtkWidget->y());
+	qvtkWidget->GetRenderWindow()->SetInteractor(interactor);//cr
 
 	renderer->ResetCamera();//Reset camera and then render is better
 	vtkSmartPointer<vtkCamera> camera = renderer->GetActiveCamera();
 	double *bounds = renderer->ComputeVisiblePropBounds();
 	int *size = qvtkWidget->GetRenderWindow()->GetSize();
 	this->ImageAutoFillWindow(camera, bounds, size);
-	//imageViewer->GetRenderer()->SetActiveCamera(camera);
-	//imageViewer->GetRenderer()->SetBackground(0.2, 0.3, 0.4);
 	qvtkWidget->GetRenderWindow()->Render();
 	interactor->Initialize();
-	qvtkWidget->show();
+
+	////renderer->ResetCamera();//Reset camera and then render is better
+	//vtkSmartPointer<vtkCamera> camera = renderer->GetActiveCamera();
+	//this->SetImageFillWindow(camera, scalarComponent->GetOutput(), qvtkWidget->width(), qvtkWidget->height());
+	////imageViewer->GetRenderer()->SetActiveCamera(camera);
+	////imageViewer->GetRenderer()->SetBackground(0.2, 0.3, 0.4);
+	//qvtkWidget->GetRenderWindow()->Render();
+	//interactor->Initialize();
+	//qvtkWidget->show();
+	//std::cout << "QVTKWIDEGT SIZE AFTER show= " << qvtkWidget->width() << "-" << qvtkWidget->height() << std::endl;
+
+
+
+
+	//renderer->ResetCamera();//Reset camera and then render is better
+	////vtkSmartPointer<vtkCamera> camera = renderer->GetActiveCamera();
+	////this->SetImageFillWindow(camera, scalarComponent->GetOutput(), qvtkWidget->width(), qvtkWidget->height());
+	//////imageViewer->GetRenderer()->SetActiveCamera(camera);
+	//////imageViewer->GetRenderer()->SetBackground(0.2, 0.3, 0.4);
+	//qvtkWidget->GetRenderWindow()->Render();
+	////interactor->Initialize();
+	//qvtkWidget->show();
 	//std::cout << "QVTKWIDEGT SIZE AFTER show= " << qvtkWidget->width() << "-" << qvtkWidget->height() << std::endl;
 
 }
@@ -1113,7 +1185,7 @@ void MainWindow::onAddRoiChart(bool _toggle)
 				QScatterSeries *point = new QScatterSeries;
 				line->setName(hookitem->child(i)->text());
 				point->setName(hookitem->child(i)->text());
-				point->setMarkerSize(10.0);
+				point->setMarkerSize(5.0);
 				for (int j = 0; j < hookitem->child(i)->rowCount(); j++)
 				{
 					QString valueTxt = hookitem->child(i)->child(j, 2)->text();

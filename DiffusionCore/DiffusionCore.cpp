@@ -169,9 +169,15 @@ void DiffusionCore::onSetSourceImage(DicomHelper* dicomData, int inputSlice)
 	//
 	//Enable/Disable Buttons.
 	//
-
+	std::cout << m_DicomHelper->imageDataType;
 	qDebug() << "recieved slice = " << inputSlice << "m_CurrentSlice = " << m_CurrentSlice;
 
+	if (m_DicomHelper->imageDataType != "DIFFUSION")
+	{
+		cout << "not DIFFUSION" << endl;
+		return;
+	}		
+	
 	if (m_DicomHelper->tensorComputationPossible)
 	{
 		std::cout << "[SetSourceImage] DTI OK ";
@@ -180,6 +186,7 @@ void DiffusionCore::onSetSourceImage(DicomHelper* dicomData, int inputSlice)
 		{
 			this->m_Controls->ADCTool->setEnabled(false);
 		}
+		onRecalcAll(inputSlice); //recalculated all calculated images 
 	}else{
 		//this->ui->dtiNameTag->setText("Data does not contain multiple direction, view Only");
 		if (m_DicomHelper->numberOfBValue >= 2)
@@ -199,9 +206,9 @@ void DiffusionCore::onSetSourceImage(DicomHelper* dicomData, int inputSlice)
 				this->m_Controls->ivimToggle->setEnabled(false);
 			}
 		}
+		onRecalcAll(inputSlice); //recalculated all calculated images 
 	}
 
-	onRecalcAll(inputSlice); //recalculated all calculated images 
 }
 
 void DiffusionCore::onSelectImage(const QString widgetName)
@@ -401,7 +408,7 @@ void DiffusionCore::onCalcADC(bool _istoggled) //SLOT of adcToggle
 {
 	vtkSmartPointer <vtkImageData> calculatedAdc;
 	const QString imageName(this->m_Controls->adcToggle->text());
-	float scale(0.0), slope(0.0);
+	float scale(1.0), slope(0.0);
 
 	if (_istoggled)
 	{
@@ -496,15 +503,13 @@ void DiffusionCore::AdcCalculator(vtkSmartPointer <vtkImageData> imageData, floa
 	convItkToVtk->Update();
 
 	imageData->DeepCopy(convItkToVtk->GetOutput());
-
-	//cout << "ADC calculator: " << imageData->GetScalarComponentAsFloat(60, 60, 0, 0) << endl;
 }
 
 void DiffusionCore::onCalcEADC(bool _istoggled) //SLOT of eadcToggle
 {
 	vtkSmartPointer <vtkImageData> calculatedEAdc;
 	const QString imageName(this->m_Controls->eadcToggle->text());
-	float scale(0.0), slope(0.0);
+	float scale(1.0), slope(0.0);
 
 	if (_istoggled)
 	{
@@ -608,7 +613,7 @@ void DiffusionCore::onCalcCDWI(bool _istoggled)  //SLOT of cdwiToggle
 {
 	vtkSmartPointer <vtkImageData> computedDwi;
 	const QString imageName(this->m_Controls->cdwiToggle->text());
-	float scale(0.0), slope(0.0);
+	float scale(1.0), slope(0.0);
 
 	if (_istoggled)
 	{
@@ -710,7 +715,7 @@ void DiffusionCore::onCalcFA(bool _istoggled)  //SLOT of faToggle
 {
 	vtkSmartPointer <vtkImageData> calculatedFA;
 	const QString imageName(this->m_Controls->faToggle->text());
-	float scale(0.0), slope(0.0);
+	float scale(1.0), slope(0.0);
 
 	if (_istoggled)
 	{	
@@ -845,13 +850,16 @@ void DiffusionCore::ColorFACalculator(vtkSmartPointer <vtkImageData> imageData)
 
 void DiffusionCore::onCalcIVIM(bool _istoggled)
 {
-	vtkSmartPointer <vtkImageData> computedIVIM;
+	//vtkSmartPointer <vtkImageData> computedIVIM;
+	vtkSmartPointer <vtkImageData> computedIVIM_F;
+	vtkSmartPointer <vtkImageData> computedIVIM_DStar;
+	vtkSmartPointer <vtkImageData> computedIVIM_D;
 
 	const QString imageName(this->m_Controls->ivimToggle->text());
 	const QString imageName_0(imageName + "_F");
 	const QString imageName_1(imageName + "_Dstar");
 	const QString imageName_2(imageName + "_D");
-	float scale(0.0), slope(0.0);
+	double scaleSlope[3], scaleIntercept[3];
 
 	if (_istoggled)
 	{
@@ -882,7 +890,9 @@ void DiffusionCore::onCalcIVIM(bool _istoggled)
 			return;
 		}
 
-		for (int i = 301; i < 307; i++)
+		//PR: do not disable IVIM button (307).
+		//PR: disable other buttons right from dicom loading, rather than here.
+		for (int i = 301; i < 306; i++)
 		{
 			ButtonTable->button(i)->blockSignals(true);
 			ButtonTable->button(i)->setChecked(false);
@@ -890,21 +900,27 @@ void DiffusionCore::onCalcIVIM(bool _istoggled)
 			ButtonTable->button(i)->setEnabled(false);
 		}
 			
-		computedIVIM = vtkSmartPointer <vtkImageData>::New();
-		this->IVIMCalculator(computedIVIM);
+		computedIVIM_F = vtkSmartPointer <vtkImageData>::New();
+		computedIVIM_DStar = vtkSmartPointer <vtkImageData>::New();
+		computedIVIM_D = vtkSmartPointer <vtkImageData>::New();
+		this->IVIMCalculator(computedIVIM_F, computedIVIM_DStar, computedIVIM_D, scaleSlope, scaleIntercept);
 
 	}
 	else
 	{ 
 		Diff_ActiveWdw.removeOne(BUTTON_GROUP_ID + 6);
-		computedIVIM = NULL;
+		computedIVIM_F = NULL;
+		computedIVIM_DStar = NULL;
+		computedIVIM_D = NULL;
 	}
-	emit SignalTestButtonFired(_istoggled, computedIVIM, imageName_0, scale, slope);
-	emit SignalTestButtonFired(_istoggled, computedIVIM, imageName_1, scale, slope);
-	emit SignalTestButtonFired(_istoggled, computedIVIM, imageName_2, scale, slope);
+
+	//Do we need to hold a fixed time before emit signal? The purpose is to account for the processing time
+	emit SignalTestButtonFired(_istoggled, computedIVIM_F, imageName_0, scaleSlope[0], scaleIntercept[0]);
+	emit SignalTestButtonFired(_istoggled, computedIVIM_DStar, imageName_1, scaleSlope[1], scaleIntercept[1]);
+	emit SignalTestButtonFired(_istoggled, computedIVIM_D, imageName_2, scaleSlope[2], scaleIntercept[2]);
 }
 
-void DiffusionCore::IVIMCalculator(vtkSmartPointer <vtkImageData> imageData)
+void DiffusionCore::IVIMCalculator(vtkSmartPointer <vtkImageData> IVIM_F, vtkSmartPointer <vtkImageData> IVIM_DStar, vtkSmartPointer <vtkImageData> IVIM_D, double* scaleSlope, double* scaleIntercept)
 {
 	if (!this->m_MaskVectorImage) return;
 
@@ -943,6 +959,9 @@ void DiffusionCore::IVIMCalculator(vtkSmartPointer <vtkImageData> imageData)
 	rescaleFilter->SetOutputMinimum(0.0);
 	rescaleFilter->Update();
 
+	scaleSlope[0] = 1 / rescaleFilter->GetScale();
+	scaleIntercept[0] = -1 * rescaleFilter->GetShift() / rescaleFilter->GetScale();
+
 	///////////////////////////////////////////
 	//ITK to VTK for visualization
 	typedef itk::ImageToVTKImageFilter < DiffusionCalculatorImageType> itkToVtkConverter;
@@ -951,8 +970,10 @@ void DiffusionCore::IVIMCalculator(vtkSmartPointer <vtkImageData> imageData)
 	convItkToVtk->Update();
 	//}
 
-	vtkSmartPointer <vtkImageAppendComponents> appendComponents = vtkSmartPointer <vtkImageAppendComponents>::New();
-	appendComponents->SetInputData(convItkToVtk->GetOutput());
+	IVIM_F->DeepCopy(convItkToVtk->GetOutput());
+
+	//vtkSmartPointer <vtkImageAppendComponents> appendComponents = vtkSmartPointer <vtkImageAppendComponents>::New();
+	//appendComponents->SetInputData(convItkToVtk->GetOutput());
 
 	//Component 1---------------------------------------
 	//vector image to scalar image or imageContainer
@@ -978,6 +999,9 @@ void DiffusionCore::IVIMCalculator(vtkSmartPointer <vtkImageData> imageData)
 	rescaleFilter1->SetOutputMinimum(0.0);
 	rescaleFilter1->Update();
 
+	scaleSlope[1] = 1 / rescaleFilter1->GetScale();
+	scaleIntercept[1] = -1 * rescaleFilter1->GetShift() / rescaleFilter1->GetScale();
+
 	///////////////////////////////////////////
 	//ITK to VTK for visualization
 	//typedef itk::ImageToVTKImageFilter < DiffusionCalculatorImageType> itkToVtkConverter;
@@ -985,7 +1009,8 @@ void DiffusionCore::IVIMCalculator(vtkSmartPointer <vtkImageData> imageData)
 	convItkToVtk1->SetInput(rescaleFilter1->GetOutput());// changed to rescale filter
 	convItkToVtk1->Update();
 	
-	appendComponents->AddInputData(convItkToVtk1->GetOutput());
+	IVIM_DStar->DeepCopy(convItkToVtk1->GetOutput());
+	//appendComponents->AddInputData(convItkToVtk1->GetOutput());
 
 	//Component 2---------------------------------------
 	//vector image to scalar image or imageContainer
@@ -1011,6 +1036,9 @@ void DiffusionCore::IVIMCalculator(vtkSmartPointer <vtkImageData> imageData)
 	rescaleFilter2->SetOutputMinimum(0.0);
 	rescaleFilter2->Update();
 
+	scaleSlope[2] = 1 / rescaleFilter2->GetScale();
+	scaleIntercept[2] = -1 * rescaleFilter2->GetShift() / rescaleFilter2->GetScale();
+
 	///////////////////////////////////////////
 	//ITK to VTK for visualization
 	//typedef itk::ImageToVTKImageFilter < DiffusionCalculatorImageType> itkToVtkConverter;
@@ -1018,29 +1046,26 @@ void DiffusionCore::IVIMCalculator(vtkSmartPointer <vtkImageData> imageData)
 	convItkToVtk2->SetInput(rescaleFilter2->GetOutput());// changed to rescale filter
 	convItkToVtk2->Update();
 
-	appendComponents->AddInputData(convItkToVtk2->GetOutput());
-	appendComponents->Update();
-	std::cout << "IVIM calculator imageData components before deepcopy = " << std::endl;
-	imageData->DeepCopy(appendComponents->GetOutput());
-	std::cout << "IVIM calculator imageData components = " << imageData->GetNumberOfScalarComponents() << std::endl;
+	IVIM_D->DeepCopy(convItkToVtk2->GetOutput());
+	//appendComponents->AddInputData(convItkToVtk2->GetOutput());
+	//appendComponents->Update();
+	//std::cout << "IVIM calculator imageData components before deepcopy = " << std::endl;
+	//imageData->DeepCopy(appendComponents->GetOutput());
+	//std::cout << "IVIM calculator imageData components = " << imageData->GetNumberOfScalarComponents() << std::endl;
 }
 
 void DiffusionCore::onRecalcAll(int inputSlice)
 {		
-	qDebug() << "recalc slice = " << inputSlice << "m_CurrentSlice = " << m_CurrentSlice;
+	if (inputSlice < 0) return;
 
-	if (inputSlice >= 0)
-	{
-		//std::cout << "[onRecalcAll] updating slice" << endl;
-		m_CurrentSlice = inputSlice;
-		vtkSmartPointer<vtkImageData> SourceImageSlice = vtkSmartPointer<vtkImageData>::New();
-		ComputeCurrentSourceImage(inputSlice, SourceImageSlice);
-
-		UpdateMaskVectorImage(m_DicomHelper, inputSlice, this->m_MaskVectorImage);
-		
-		emit SignalTestButtonFired(true, SourceImageSlice, QString("Source"), 1, 0);
-		//m_vectorImage.insert(inputSlice, m_MaskVectorImage);
-		if (!this->m_MaskVectorImage) return;
+	//Update m_CurrentSlice here!!!
+	m_CurrentSlice = inputSlice;
+	vtkSmartPointer<vtkImageData> SourceImageSlice = vtkSmartPointer<vtkImageData>::New();
+	ComputeCurrentSourceImage(inputSlice, SourceImageSlice);
+	UpdateMaskVectorImage(m_DicomHelper, inputSlice, this->m_MaskVectorImage);
+	//m_vectorImage.insert(inputSlice, m_MaskVectorImage);
+	emit SignalTestButtonFired(true, SourceImageSlice, QString("Source"), 1, 0);
+	if (!this->m_MaskVectorImage) return;
 
 		//Retrigger All Checked Buttons. 
 		for (int i = BUTTON_GROUP_ID + 1; i < BUTTON_GROUP_ID + 7; i++)
@@ -1053,11 +1078,6 @@ void DiffusionCore::onRecalcAll(int inputSlice)
 				ButtonTable->button(i)->setChecked(true);
 			}
 		}
-	}
-	else
-	{
-		std::cout << "[onRecalcAll] ERROR input slice is negative" << endl;
-	}
 }
 
 void DiffusionCore::ComputeCurrentSourceImage(int currentSlice, vtkSmartPointer <vtkImageData> SourceImageData)
@@ -1181,7 +1201,7 @@ void DiffusionCore::UpdateMaskVectorImage(DicomHelper* dicomData, int currentSli
 	maskFilter->Update();//output is a Image Pointer!!!
 
 	//std::cout << "maskFilter: vectorLength = " << maskFilter->GetOutput()->GetVectorLength() << std::endl;
-
+	//maskFilter->GetOutput()->get
 	//itk version of DeepCopy	
 	_MaskVectorImage->SetSpacing(maskFilter->GetOutput()->GetSpacing());
 	_MaskVectorImage->SetOrigin(maskFilter->GetOutput()->GetOrigin());

@@ -137,7 +137,7 @@ protected:
 	void SortingSourceImage(); //This should be moved to DicomHelper class
 
 	void ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, std::string imageLabel);
-	void IVIMImageViewer(vtkSmartPointer <vtkImageData>, QVTKWidget *qvtkWidget, int imageIdx);
+	void IVIMImageViewer(vtkSmartPointer <vtkImageData>, QVTKWidget *qvtkWidget, std::string imageLabel);
 
 	
 	void ShareWindowEvent();	
@@ -170,11 +170,9 @@ private:
 	int sourceScalarType = 0;
 	
 	int m_SourceImageCurrentSlice;
+	int m_SourceImageCurrentComponent;
 	int m_SourceImageMaxSlice;
 	int m_SourceImageMinSlice;
-
-	double m_MaskThreshold;
-	double m_ComputedBValue;
 
 	float curScalPara[2];
 	QModelIndex curRoiDataindex;

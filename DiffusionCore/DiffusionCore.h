@@ -194,8 +194,7 @@ protected:
 	void ColorFACalculator(vtkSmartPointer <vtkImageData> imageData);
 	void EAdcCalculator(vtkSmartPointer <vtkImageData> imageData, float& scale, float& slope);
 	void CDWICalculator(vtkSmartPointer <vtkImageData> imageData, float& scale, float& slope);
-	void IVIMCalculator(vtkSmartPointer <vtkImageData> imageData);
-	void IVIMImageViewer(vtkSmartPointer <vtkImageData>, QVTKWidget *qvtkWidget, int imageIdx);
+	void IVIMCalculator(vtkSmartPointer <vtkImageData> IVIM_F, vtkSmartPointer <vtkImageData> IVIM_DStar, vtkSmartPointer <vtkImageData> IVIM_D, double* scaleSlope, double* scaleIntercept);
 	void ComputeCurrentSourceImage(int currentSlice, vtkSmartPointer <vtkImageData> SourceImageData);
 	//void IVIMCalculator2(std::vector <vtkSmartPointer <vtkImageData>> vtkImageDataVector);
 	//void DiffusionCore::IVIMImageViewer2(std::vector <vtkSmartPointer <vtkImageData>> vtkImageDataVector, QVTKWidget *qvtkWidget);
