@@ -65,6 +65,14 @@ void PerfusionCore::onSetSourceImage(DicomHelper* dicomData, int inputSlice)
 	}
 	else
 	{
+		for (int i = 401; i < 409; i++)
+		{
+			if (ButtonTable->button(i)->isChecked())
+			{
+				ButtonTable->button(i)->setChecked(false);
+			}
+		}
+
 		cout << "image TYPE" << m_DicomHelper->imageDataType.c_str() << endl;
 		this->m_Controls->PerfusionTool->setEnabled(true);
 		this->m_Controls->PerfusionTool2->setEnabled(true);

@@ -255,6 +255,17 @@ void MainWindow::OnImageFilesLoaded(const QStringList& fileLists)
 		this->ui->ViewFrame->insertWindow(vtkWindow, orgLabel);
 	}
 
+	if (m_DicomHelper->imageDataType.compare("DIFFUSION") == 0)
+	{
+		qDebug() << "Handling diffusion data";
+		ui->ProcModule->setCurrentIndex(0);
+	}
+	else if(m_DicomHelper->imageDataType.compare("PERFUSION") == 0)
+	{
+		qDebug() << "Handling perfusion data";
+		ui->ProcModule->setCurrentIndex(1);
+	}
+
 	//emit SignalDicomLoaded(true);
 	DicomUI->hide();
 	//std::cout << "srcimage viewer" << std::endl;
@@ -263,15 +274,19 @@ void MainWindow::OnImageFilesLoaded(const QStringList& fileLists)
 	//roiInfoModel = new QStandardItemModel;
 	//ui->chartROIBtn->setDisabled(true);
 
-	info = new QMessageBox(this);
-	info->setWindowTitle(tr("Perform Registration?"));
-	info->setText(tr("[Anatomy: Head][Protocol: Diffusion] is detected, perform registration automatically?"));
-	info->setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
-	int ret = info->exec();
-	if (ret == QMessageBox::Ok){
-		DisplayDicomInfo(this->sourceImage);
-		emit SignalSetSourceImage(m_DicomHelper, m_SourceImageCurrentSlice);
+	int ret(QMessageBox::Ok);
+	if (m_DicomHelper->imageDataType.compare("DIFFUSION") == 0)
+	{
+		info = new QMessageBox(this);
+		info->setWindowTitle(tr("Perform Registration?"));
+		info->setText(tr("[Anatomy: Head][Protocol: Diffusion] is detected, perform registration automatically?"));
+		info->setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+		ret = info->exec();
 	}
+
+	DisplayDicomInfo(this->sourceImage);
+	emit SignalSetSourceImage(m_DicomHelper, m_SourceImageCurrentSlice);
+
 }
 
 void MainWindow::DisplayDicomInfo(vtkSmartPointer <vtkImageData> imageData)
@@ -1235,29 +1250,44 @@ void MainWindow::onAddRoiBar(bool _toggle)
 		{
 			QStandardItem *hookitem;
 			hookitem = roiInfoModel->itemFromIndex(curRoiDataindex);
-			QList<QBarSet* > barsets;
-			QBarSeries *series = new QBarSeries();
-			QList<float> stdsets;
+			//QList<QBarSet* > barsets;
+			//QBarSeries *series = new QBarSeries();		
+
+			QBoxPlotSeries *acmeSeries = new QBoxPlotSeries();
+
+			//QList<float> stdsets;
+
+
 			for (int i = 0; i < hookitem->rowCount(); i++)
 			{
-				QBarSet *set = new QBarSet(hookitem->child(i, 0)->text());
+				QBoxSet *box = new QBoxSet(hookitem->child(i, 0)->text());
+				//QBarSet *set = new QBarSet(hookitem->child(i, 0)->text());
 				QString valueTxt = hookitem->child(i, 2)->text();
+				QString rangeTxt = hookitem->child(i, 3)->text();
 				float value = valueTxt.section(" (", 0, 0).toFloat();
 				float std = valueTxt.section("(", 1, 1).section(")", 0, 0).toFloat();
-				*set << value;
-				series->append(set);
-				stdsets << std;
+				float sMin = rangeTxt.section(" ~ ", 0, 0).toFloat();
+				float sMax = rangeTxt.section(" ~ ", 1, 1).toFloat();
+				box->setValue(QBoxSet::LowerExtreme, sMin);
+				box->setValue(QBoxSet::UpperExtreme, sMax);
+				box->setValue(QBoxSet::Median, value);
+				box->setValue(QBoxSet::LowerQuartile, value+std);
+				box->setValue(QBoxSet::UpperQuartile, value-std);
+
+				//*set << value;
+				acmeSeries->append(box);
+				//stdsets << std;
 			}
-			QChart *barchart = new QChart();
-			barchart->addSeries(series);
+			QChart *barchart = new QChart;
+			barchart->addSeries(acmeSeries);
 			barchart->setTitle(hookitem->text());
 			barchart->setAnimationOptions(QChart::SeriesAnimations);
 			barchart->legend()->setAlignment(Qt::AlignBottom);
 			barchart->setTheme(QChart::ChartThemeDark);
 			barchart->createDefaultAxes();
-			QBarCategoryAxis *axis = new QBarCategoryAxis();
-			axis->append(QString("Mean"));
-			barchart->setAxisX(axis);
+			//QBarCategoryAxis *axis = new QBarCategoryAxis();
+			//axis->append(QString("Mean"));
+			//barchart->setAxisX(axis);
 			QChartView *chartView = new QChartView(barchart);
 			chartView->setRenderHint(QPainter::Antialiasing);
 			ui->ViewFrame->insertWindow(chartView, QString("RoiBarChart"));

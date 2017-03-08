@@ -178,16 +178,32 @@ void DiffusionCore::onSetSourceImage(DicomHelper* dicomData, int inputSlice)
 		return;
 	}		
 	
+	//reset all button;
+	for (int i = BUTTON_GROUP_ID + 1; i < BUTTON_GROUP_ID + 7; i++)
+	{
+		if (ButtonTable->button(i)->isChecked())
+		{
+			ButtonTable->button(i)->setChecked(false);		
+		}
+	}
+
 	if (m_DicomHelper->tensorComputationPossible)
 	{
 		std::cout << "[SetSourceImage] DTI OK ";
 		this->m_Controls->DTITool->setEnabled(true);
-		if (m_DicomHelper->numberOfBValue < 2)
+
+		if (m_DicomHelper->numberOfBValue >= 4)
 		{
-			this->m_Controls->ADCTool->setEnabled(false);
+			this->m_Controls->ivimToggle->setEnabled(true);
 		}
+		else{
+			this->m_Controls->ivimToggle->setEnabled(false);
+		}
+		
 		onRecalcAll(inputSlice); //recalculated all calculated images 
+
 	}else{
+		this->m_Controls->DTITool->setEnabled(false);
 		//this->ui->dtiNameTag->setText("Data does not contain multiple direction, view Only");
 		if (m_DicomHelper->numberOfBValue >= 2)
 		{

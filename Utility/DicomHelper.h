@@ -98,7 +98,7 @@ private:
 	void DicomInfo(vtkDICOMMetaData* metaData);
 	void DiffusionInfo(vtkDICOMMetaData* metaData, vtkIntArray* fileIndexArray, vtkIntArray* frameIndexArray);
 	void PerfusionInfo(vtkDICOMMetaData* metaData, vtkIntArray* fileIndexArray, vtkIntArray* frameIndexArray);
-	void SortingSourceImage(vtkImageData* sourceData);
+	void SortingSourceImage(vtkImageData* sourceData, std::vector<float> basedVector, int secondOrderNumber);
 	vtkDICOMValue GetAttributeValue(vtkDICOMMetaData* metaData, vtkDICOMTag tagValue,
 		int fileIndex, int frameIndex);
 

@@ -1656,7 +1656,7 @@ QProgressBar::chunk {
              <string notr="true"/>
             </property>
             <property name="currentIndex">
-             <number>1</number>
+             <number>0</number>
             </property>
             <widget class="QWidget" name="Module1">
              <attribute name="title">

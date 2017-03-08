@@ -48,7 +48,7 @@ DicomHelper::DicomHelper(vtkStringArray* Files)
 	if (diffusionChar[0] == 'Y' || diffusionChar[0] == 'y') 
 		imageDataType = "DIFFUSION";
 	if ((dynamicChar[0] == 'Y'||dynamicChar[0] == 'y') 
-		&& numberOfDynamic > 20)
+		&& numberOfDynamic > 5)
 		imageDataType = "PERFUSION";
 	cout << "[DICOM DATA TYPE]: " << imageDataType.c_str() << endl;
 
@@ -69,17 +69,18 @@ DicomHelper::DicomHelper(vtkStringArray* Files)
 	ang.Fill(0.0);
 	//perfusion parameters;
 
-	// get the related parameters;
-	this->DicomInfo(DicomMetaData);
-
 	//the image data;
 	imageData = vtkSmartPointer<vtkImageData>::New();
 	imageData = this->DicomReader->GetOutput();
-	if (imageDataType == "DIFFUSION" && numberOfBValue > 2)
-	{
-		//only for Diffusion images with number of b values larger than 2(includes b = 0)
-		this->SortingSourceImage(imageData);
-	}
+
+	// get the related parameters;
+	this->DicomInfo(DicomMetaData);
+
+	//if (imageDataType == "DIFFUSION" && numberOfBValue > 2)
+	//{
+	//	//only for Diffusion images with number of b values larger than 2(includes b = 0)
+	//	this->SortingSourceImage(imageData);
+	//}
 };
 
 void DicomHelper::DicomTagForGE()
@@ -227,6 +228,11 @@ void DicomHelper::DiffusionInfo(vtkDICOMMetaData* metaData,
 		CalculateFinalHMatrix();
 	}
 
+	int numOfGradDir = this->numberOfGradDirection;
+	if (this->IsoImageLabel > -1) numOfGradDir += 1;
+	this->SortingSourceImage(imageData, this->BvalueList, numOfGradDir);
+
+
 };
 
 void DicomHelper::PerfusionInfo(vtkDICOMMetaData* metaData, 
@@ -245,7 +251,7 @@ void DicomHelper::PerfusionInfo(vtkDICOMMetaData* metaData,
 
 	}
 
-
+	this->SortingSourceImage(imageData, this->dynamicTime, 1);//the third parameter usded for diffusion gradient direction number
 };
 
 void DicomHelper::CalculateFinalHMatrix()
@@ -358,32 +364,28 @@ vtkDICOMValue DicomHelper::GetAttributeValue(vtkDICOMMetaData* metaData, vtkDICO
 
 }
 
-void DicomHelper::SortingSourceImage(vtkImageData* sourceData)
+void DicomHelper::SortingSourceImage(vtkImageData* sourceData, std::vector<float> basedVector, int secondOrderNumber)
 {
 	//sorting b value list from small to larger using vector Pair sort.
 	//which can get the sorted index array. it can be used for the 
 	//source image sorting.
 	std::vector< std::pair<float, int> > vectorPair;
-	std::vector<int> bValueOrderIndex(this->BvalueList.size());
-	cout << "b values lise:" << this->BvalueList.size() << endl;
-	for (int i = 0; i < this->BvalueList.size(); i++)
+	int length = basedVector.size();
+	std::vector<int> paraOrderIndex(length);
+
+	for (int i = 0; i < length; i++)
 	{
-		bValueOrderIndex[i] = i;
-		vectorPair.push_back(std::make_pair(this->BvalueList[i], bValueOrderIndex[i]));
+		paraOrderIndex[i] = i;
+		vectorPair.push_back(std::make_pair(basedVector[i], paraOrderIndex[i]));
 	}
 	std::stable_sort(vectorPair.begin(), vectorPair.end(), cmp);
-	for (int i = 0; i < this->BvalueList.size(); i++)
-	{
-		cout << "b value:" << vectorPair[i].first << "index:" << vectorPair[i].second << endl;
-		this->BvalueList[i] = vectorPair[i].first;
-		bValueOrderIndex[i] = vectorPair[i].second;
-	}
 
-	//allocate memory for sourceImage based on the dicom output data.
-	//this->imageData->SetDimensions(this->imageDimensions);
-	//this->imageData->SetSpacing(this->DicomReader->GetOutput()->GetSpacing());
-	//this->imageData->SetOrigin(this->DicomReader->GetOutput()->GetOrigin());
-	//this->imageData->AllocateScalars(VTK_UNSIGNED_SHORT, this->numberOfComponents);
+	for (int i = 0; i < length; i++)
+	{
+		cout << "value:" << vectorPair[i].first << "index:" << vectorPair[i].second << endl;
+		basedVector[i] = vectorPair[i].first;
+		paraOrderIndex[i] = vectorPair[i].second;
+	}
 
 	// Sorting the output data based on the b Value order
 	int* dims = this->imageDimensions;
@@ -393,26 +395,26 @@ void DicomHelper::SortingSourceImage(vtkImageData* sourceData)
 		{
 			for (int x = 0; x<dims[0]; x++)
 			{
-				int numOfGradDir = this->numberOfGradDirection;
-				if (this->IsoImageLabel > -1) numOfGradDir += 1;
+
 				unsigned short *dicomPtr = static_cast<unsigned short *>(this->DicomReader->GetOutput()->GetScalarPointer(x, y, z));
 				unsigned short *sourcePtr = static_cast<unsigned short *>(sourceData->GetScalarPointer(x, y, z));
-				sourcePtr[0] = dicomPtr[bValueOrderIndex[0] * numOfGradDir];
+				sourcePtr[0] = dicomPtr[paraOrderIndex[0] * secondOrderNumber];
 
 				//sorting based on the b value order
 				int sourceCmpIndex = 1;
 				for (int cmp = 1; cmp < numberOfComponents; cmp++)
 				{
 					//get the b value index for current component
-					int bValueIndex = (cmp - 1) / numOfGradDir + 1;
+					int paraIndex = (cmp - 1) / secondOrderNumber + 1;
 					//get the grad direction indec for current component
-					int gradDirIndex = cmp - 1 - numOfGradDir*(bValueIndex - 1);
+					int secondOrderIndex = cmp - 1 - secondOrderNumber*(paraIndex - 1);
 					//calculate the corrsponding component index in the dicom output data
 					int dicomCmpIndex;
-					if (bValueOrderIndex[bValueIndex] < bValueOrderIndex[0])
-						dicomCmpIndex = (bValueOrderIndex[bValueIndex]) * numOfGradDir + gradDirIndex;
+					if (paraOrderIndex[paraIndex] < paraOrderIndex[0])
+						dicomCmpIndex = (paraOrderIndex[paraIndex]) * secondOrderNumber + secondOrderIndex;
 					else
-						dicomCmpIndex = (bValueOrderIndex[bValueIndex] - 1) * numOfGradDir + gradDirIndex + 1;
+						dicomCmpIndex = (paraOrderIndex[paraIndex] - 1) * secondOrderNumber + secondOrderIndex + 1;
+
 					// remove the Isotropic direction for DTI
 					if (this->IsoImageLabel != dicomCmpIndex)
 						sourcePtr[sourceCmpIndex++] = dicomPtr[dicomCmpIndex];
