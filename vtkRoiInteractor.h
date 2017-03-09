@@ -56,10 +56,10 @@ public:
 public:
 	vtkRoiInteractor();
 	~vtkRoiInteractor();
-	void initialize(vtkSmartPointer<vtkRenderWindowInteractor>, QStandardItem*, float*, const QString, QHash<QString, QHash<int, vtkContourRepresentation*> >*, int,int );
+	void initialize(vtkSmartPointer<vtkRenderWindowInteractor>, QStandardItem*, float*, QHash<int, QHash<QString, vtkContourRepresentation*> >*, int, int);
 	void usePolydata(vtkSmartPointer<vtkRenderWindowInteractor> iInt, vtkPolyData* plydata);
 	void useContourRep(vtkSmartPointer<vtkRenderWindowInteractor> iInt, vtkContourRepresentation* contourRep,
-		QStandardItem * parentItem, float* scalingPara, const QString text, QHash<QString, QHash<int, vtkContourRepresentation*> >* RoiHash, int sliceNum);
+		QStandardItem * parentItem, float* scalingPara, QHash<int, QHash<QString, vtkContourRepresentation*> >* RoiHash, int sliceNum);
 
 
 	QString imageName;

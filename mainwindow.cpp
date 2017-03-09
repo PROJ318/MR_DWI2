@@ -95,7 +95,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	showMaximized();
 
 	ui->ViewFrame->setFocus();
-	//ui->chartROIBtn->setDisabled(true);
+	//ui->deleteROIBtn->setDisabled(true);
 	roiInfoModel = new QStandardItemModel;	
 	this->ui->statisBrowser->setModel(roiInfoModel);
 	//this->ui->statisBrowser->setHeaderHidden(true);
@@ -126,6 +126,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	connect(ui->statisBrowser, SIGNAL(clicked(QModelIndex)), this, SLOT(onClickTreeView(QModelIndex)));
 	connect(ui->chartROIBtn, SIGNAL(toggled(bool)), this, SLOT(onAddRoiChart(bool)));
 	connect(ui->barROIBtn, SIGNAL(toggled(bool)), this, SLOT(onAddRoiBar(bool)));
+	connect(ui->deleteROIBtn, SIGNAL(clicked()), this, SLOT(removeROI()));
 
 	//View Frame Connections
 	connect(ui->ViewFrame, SIGNAL(signalWheel(const QString, int, Qt::Orientation)), this, SLOT(onWheelWdw(const QString, int, Qt::Orientation)));
@@ -272,7 +273,7 @@ void MainWindow::OnImageFilesLoaded(const QStringList& fileLists)
 	//clearing the roi2D hash.
 	Roi2DHash.clear();
 	//roiInfoModel = new QStandardItemModel;
-	//ui->chartROIBtn->setDisabled(true);
+	//ui->deleteROIBtn->setDisabled(true);
 
 	int ret(QMessageBox::Ok);
 	if (m_DicomHelper->imageDataType.compare("DIFFUSION") == 0)
@@ -462,51 +463,77 @@ void MainWindow::ShareWindowEvent()
 	emit SignalRecalcAll(m_SourceImageCurrentSlice);
 
 	QStandardItem *root = roiInfoModel->invisibleRootItem();
-	QList<QString> roiNames = Roi2DHash.keys();
-	foreach(QString thisRoiName, roiNames)
-	{
-		QStandardItem * entryPoint;
+	
+	//QList<QString> roiNames = Roi2DHash.keys();
+	
+	//foreach(QString thisRoiName, roiNames)
+	//{
+	//	QStandardItem * entryPoint;
 
-		for (int i = 0; i < root->rowCount(); i++)
+	//	for (int i = 0; i < root->rowCount(); i++)
+	//	{
+	//		if (thisRoiName == root->child(i)->text())
+	//		{
+	//			entryPoint = root->child(i);
+	//		}
+	//	}
+
+	if (Roi2DHash.contains(m_SourceImageCurrentSlice))
+	{
+		QList<QString> roiNames = Roi2DHash[m_SourceImageCurrentSlice].keys();
+
+		QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
+		QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
+		while (wdwIter.hasNext())
 		{
-			if (thisRoiName == root->child(i)->text())
+			wdwIter.next();
+			if (!ActiveWdw.contains(wdwIter.key()))
 			{
-				entryPoint = root->child(i);
+				ActiveWdw << wdwIter.key();
+				ui->ViewFrame->onLabelWdw(wdwIter.key());
 			}
 		}
 
-		if (Roi2DHash[thisRoiName].contains(m_SourceImageCurrentSlice))
+		qDebug() << roiNames << " are stored in this slice: " << m_SourceImageCurrentSlice << endl;
+
+		foreach(QString wdwName, ActiveWdw)
 		{
-			QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
-			QHashIterator<const QString, QWidget * > wdwIter(currentWindows);
-			while (wdwIter.hasNext())
-			{
-				wdwIter.next();
-				if (!ActiveWdw.contains(wdwIter.key()))
+			QVTKWidget *thisWindow = static_cast <QVTKWidget*> (ui->ViewFrame->getWindow(wdwName));
+			float scalingPara[2];
+			scalingPara[0] = ScalingParameters.value(wdwName + QString("_s"));
+			scalingPara[1] = ScalingParameters.value(wdwName + QString("_k"));			
+			
+			foreach(QString thisRoiName, roiNames){
+				
+				qDebug() << "Retrieve ROI" << thisRoiName << "on window " << wdwName << "at slice " << m_SourceImageCurrentSlice << endl;
+				
+				QStandardItem * hookitem;
+				for (int i = 0; i< root->rowCount();i++)
 				{
-					ActiveWdw << wdwIter.key();
-					ui->ViewFrame->onLabelWdw(wdwIter.key());
+					if (root->child(i)->text() == wdwName)
+					{
+						for (int j = 0; j < root->child(i)->rowCount(); j++)
+						{
+							if (root->child(i)->child(j)->text() == thisRoiName)
+							{
+								hookitem = root->child(i)->child(j);
+							}
+						}
+					}
 				}
-			}
 
-			qDebug() << thisRoiName << " is stored in this slice: " << m_SourceImageCurrentSlice << endl;
+				qDebug() << "Hook item is " << hookitem->parent()->text() << "->" << hookitem->text();
 
-			foreach(QString wdwName, ActiveWdw)
-			{
-				QVTKWidget *thisWindow = static_cast <QVTKWidget*> (ui->ViewFrame->getWindow(wdwName));
-				float scalingPara[2];
-				scalingPara[0] = ScalingParameters.value(wdwName + QString("_s"));
-				scalingPara[1] = ScalingParameters.value(wdwName + QString("_k"));
-				//qDebug() << "Retrieve ROI" << thisRoiName << "on window " << wdwName << "at slice " << m_SourceImageCurrentSlice << endl;
-				vtkContourRepresentation* contourRep = static_cast<vtkContourRepresentation*>(Roi2DHash[thisRoiName].value(m_SourceImageCurrentSlice));
+				vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
+				vtkContourRepresentation* contourRep = static_cast<vtkContourRepresentation*>(Roi2DHash[m_SourceImageCurrentSlice].value(thisRoiName));
 				//qDebug() << "number of vertices = " << contourRep->GetNumberOfNodes();
 				vtkRoiInteractor* RoiInterObs = new vtkRoiInteractor;
-				RoiInterObs->useContourRep(thisWindow->GetRenderWindow()->GetInteractor(), contourRep, entryPoint, scalingPara, wdwName,
-					&Roi2DHash, m_SourceImageCurrentSlice);
+				RoiInterObs->useContourRep(renInter, contourRep, hookitem, scalingPara, &Roi2DHash, m_SourceImageCurrentSlice);
 				thisWindow->GetRenderWindow()->Render();
 			}
 		}
 	}
+	//s}
 }
 
 void MainWindow::IVIMImageViewer(vtkSmartPointer <vtkImageData> imageData, QVTKWidget *qvtkWidget, std::string imageLabel)
@@ -845,6 +872,11 @@ void MainWindow::onClickTreeView(const QModelIndex &index)
 	{
 		qDebug() << "No ROIs at slice " << m_SourceImageCurrentSlice << endl;
 	}
+
+	//if (item->parent()->parent() == roiInfoModel->invisibleRootItem())
+	//{
+	//	ui->deleteROIBtn->setEnabled(true);
+	//}
 	//ui->chartROIBtn->setEnabled(true);
 }
 
@@ -959,9 +991,16 @@ void MainWindow::addROI() //bool _istoggled
 {
 	bool okFlag(false),dupFlag(true);
 	int roimode(-1); //roimode: 0:new, 1:append, 2:edit, -1:error;
+	
+	//TODO: Need to polish this part.
+	QString DefaultInput("ROI1");
+	if (Roi2DHash[m_SourceImageCurrentSlice].contains(DefaultInput))
+	{
+		DefaultInput=QString("ROI2");
+	}
 
 	QString text = QInputDialog::getText(this, tr("QInputDialog::getText()"),
-		tr("ROI name:"), QLineEdit::Normal, tr("ROI1"), &okFlag);
+		tr("ROI name:"), QLineEdit::Normal, DefaultInput, &okFlag);
 	QStandardItem *root = roiInfoModel->invisibleRootItem();
 	if (okFlag && !text.isEmpty())
 	{
@@ -976,17 +1015,34 @@ void MainWindow::addROI() //bool _istoggled
 		//		dupFlag = false;
 		//	}
 		//}
+		QList<QStandardItem*> exitRois = roiInfoModel->findItems(text);
+
 		
-		if (Roi2DHash.contains(text)){
-			if (Roi2DHash[text].contains(m_SourceImageCurrentSlice)){
-				roimode = -1; // return.
-			}
-			else{
-				roimode = 1; //append roi
-			}
-		}else{
+		if (exitRois.size() < 1)
+		{
 			roimode = 0; //new roi
 		}
+		else{
+			if (Roi2DHash.contains(m_SourceImageCurrentSlice))
+			{
+				roimode = -1;
+			}
+			else{
+				roimode = 1;
+			}
+		}
+		
+
+		//if (Roi2DHash.contains(text)){
+		//	if (Roi2DHash[text].contains(m_SourceImageCurrentSlice)){
+		//		roimode = -1; // return.
+		//	}
+		//	else{
+		//		roimode = 1; //append roi
+		//	}
+		//}else{
+		//	roimode = 0; //new roi
+		//}
 
 	}
 
@@ -1070,7 +1126,7 @@ void MainWindow::addROI() //bool _istoggled
 			qDebug() << "slope intercept = " << scalingPara[0] << scalingPara[1] << wdwName;
 			vtkSmartPointer<vtkRenderWindowInteractor> renInter = static_cast<vtkRenderWindowInteractor*>(thisWindow->GetRenderWindow()->GetInteractor());
 			vtkRoiInteractor* RoiInterObs = new vtkRoiInteractor;
-			RoiInterObs->initialize(renInter, hookItem, scalingPara, wdwName, &Roi2DHash, roimode, m_SourceImageCurrentSlice);
+			RoiInterObs->initialize(renInter, hookItem, scalingPara, &Roi2DHash, roimode, m_SourceImageCurrentSlice);
 		}
 	}
 }
@@ -1081,6 +1137,65 @@ void MainWindow::removeROI()
 	//1. loopOver all int QHash<int, vtkCollection*> RoiCollection; remove rep from vtkcollection;
 	//2. remove row in model 
 	//3. remove actors in current windows.	
+	if (!curRoiDataindex.isValid())
+	{
+		info = new QMessageBox(this);
+		info->setWindowTitle(tr("Warning"));
+		info->setText(tr("Clearing All ROI information ?"));
+		info->setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+		int ret = info->exec();
+		if (ret == QMessageBox::Ok)
+		{
+			//1
+			roiInfoModel->clear();
+			//2
+			Roi2DHash.clear(); 
+			Roi2DHash.squeeze();
+			//3
+			QHash < const QString, QWidget * > currentWindows = ui->ViewFrame->getAllWindow();
+			QHashIterator<const QString, QWidget * > wdwIter(currentWindows); 
+			while (wdwIter.hasNext())
+			{
+				wdwIter.next();
+				QVTKWidget *thisWindow = static_cast <QVTKWidget*> (ui->ViewFrame->getWindow(wdwIter.key()));
+				vtkSmartPointer<vtkRenderer> thisrender = thisWindow->GetRenderWindow()->GetRenderers()->GetFirstRenderer();
+				vtkPropCollection* actorCollection = thisrender->GetViewProps();
+				actorCollection->InitTraversal();
+				std::cout << "Actors are : ";
+				vtkIdType i = 0;
+				vtkProp* nextActor;
+				while ((nextActor = actorCollection->GetNextProp()) != NULL)
+				{
+					//= actorCollection->GetNextProp();
+					std::cout << " " << nextActor->GetClassName();
+					std::string className = nextActor->GetClassName();
+					if (className.compare("vtkOrientedGlyphContourRepresentation") == 0)
+					{
+						std::cout << "(deleted)";
+						thisrender->RemoveActor(nextActor);
+						//			return wantActor;
+					}
+				}
+				//for (vtkIdType i = 0; actorCollection->GetNextProp(); i++)
+				//{
+
+				//	//std::string className = nextActor->GetClassName();		
+				//}
+				thisWindow->GetRenderWindow()->Render();
+				std::cout << std::endl;
+			}
+		}
+		return; 
+	}
+
+	info = new QMessageBox(this);
+	info->setWindowTitle(tr("Warning"));
+	info->setText(tr("Delete ROI in this slice (Yes) or delte ROI of all slices (Yes to All)"));
+	info->setStandardButtons(QMessageBox::Yes | QMessageBox::YesToAll);
+	int ret = info->exec();
+	
+	QStandardItem *selItem = roiInfoModel->itemFromIndex(curRoiDataindex);	
+
 
 }
 

@@ -151,7 +151,7 @@ private:
 	QHash< const QString, float >  ScalingParameters;
 	QHash<int, vtkCollection*> RoiCollection;
 
-	QHash<QString, QHash<int, vtkContourRepresentation*> > Roi2DHash;
+	QHash<int, QHash<QString, vtkContourRepresentation*> > Roi2DHash;
 	QList < QString >  ActiveWdw;
 
 	vtkEventQtSlotConnect* Connections;
