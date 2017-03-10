@@ -272,6 +272,7 @@ void MainWindow::OnImageFilesLoaded(const QStringList& fileLists)
 	//std::cout << "srcimage viewer" << std::endl;
 	//clearing the roi2D hash.
 	Roi2DHash.clear();
+	Roi2DHash.squeeze();
 	//roiInfoModel = new QStandardItemModel;
 	//ui->deleteROIBtn->setDisabled(true);
 
@@ -382,9 +383,10 @@ void MainWindow::ImageViewer2D(vtkSmartPointer <vtkImageData> imageData, QVTKWid
 		vtkSmartPointer<vtkCornerAnnotation>::New();
 	cornerAnnotation->SetLinearFontScaleFactor(2);
 	cornerAnnotation->SetNonlinearFontScaleFactor(1);
+	//cornerAnnotation->SetMaximumFontSize(12);
 	cornerAnnotation->SetMaximumFontSize(20);
-	cornerAnnotation->SetText(3, "<window>\n<level>");
-	cornerAnnotation->GetTextProperty()->SetColor(0.0, 1.0, 0.0);
+	//cornerAnnotation->SetText(3, "<window>\n<level>");
+	cornerAnnotation->GetTextProperty()->SetFontFamilyToCourier();
 	imageViewer->GetRenderer()->AddViewProp(cornerAnnotation);
 
 	//vtkSmartPointer<vtkRenderWindowInteractor> renderWindowInteractor = vtkSmartPointer<vtkRenderWindowInteractor>::New();
@@ -844,10 +846,10 @@ void MainWindow::onDisplayPickValue(vtkObject* obj, unsigned long, void* client_
 	//std::cout << scale[0] << "><" << scale[1] << std::endl;
 	tuple_float = tuple_float * scale[0] + scale[1];
 	//std::cout << tuple_float;
-	tuple_float *= 1000;  // for 10^-3 display
+	//tuple_float *= 1000;  // for 10^-3 display
 	// mentain the two bits after the decimal point
-	tuple_float = int(tuple_float * 100);
-	tuple_float = tuple_float / 100;	
+	//tuple_float = int(tuple_float * 100);
+	//tuple_float = tuple_float / 100;	
 	message += vtkVariant(tuple_float).ToString();
 	//message += "*10^(-3)mm2/s";
 
@@ -860,13 +862,13 @@ void MainWindow::onDisplayPickValue(vtkObject* obj, unsigned long, void* client_
 
 void MainWindow::onClickTreeView(const QModelIndex &index)
 {
-	curRoiDataindex = index;
+	curRoiDataindex = index.sibling(index.row(),0);
 	QStandardItem *item = roiInfoModel->itemFromIndex(curRoiDataindex);
 	qDebug() << "User clicked item at row: " << curRoiDataindex.row() << " col: " << curRoiDataindex.column() << "is " << item->text() << "it has" << item->rowCount() << endl;
 	
-	if (RoiCollection.contains(m_SourceImageCurrentSlice))
+	if (Roi2DHash.contains(m_SourceImageCurrentSlice))
 	{		
-		qDebug() << "ROI number: " << RoiCollection.value(m_SourceImageCurrentSlice)->GetNumberOfItems() << "at slice" << m_SourceImageCurrentSlice <<endl;
+		qDebug() << "ROI number: " << Roi2DHash[m_SourceImageCurrentSlice].size() << "at slice" << m_SourceImageCurrentSlice << endl;
 	}
 	else
 	{
@@ -994,60 +996,63 @@ void MainWindow::addROI() //bool _istoggled
 	
 	//TODO: Need to polish this part.
 	QString DefaultInput("ROI1");
-	if (Roi2DHash[m_SourceImageCurrentSlice].contains(DefaultInput))
-	{
-		DefaultInput=QString("ROI2");
-	}
+	//if (Roi2DHash[m_SourceImageCurrentSlice].contains(DefaultInput))
+	//{
+	//	DefaultInput=QString("ROI2");
+	//}
 
 	QString text = QInputDialog::getText(this, tr("QInputDialog::getText()"),
 		tr("ROI name:"), QLineEdit::Normal, DefaultInput, &okFlag);
 	QStandardItem *root = roiInfoModel->invisibleRootItem();
 	if (okFlag && !text.isEmpty())
 	{
-		////const QString RoiName = text;		
-		//for (int i = 0; i < root->rowCount(); i++)
-		//{
-		//	if (text == root->child(i)->text())
-		//	{
-		//		//If ROI of the same name existing on this slice.
-		//		qDebug() << "Duplicate ROI name" << endl;
-		//		//todo: if ROI of the same name not existing on thie slice, new 
-		//		dupFlag = false;
-		//	}
-		//}
-		QList<QStandardItem*> exitRois = roiInfoModel->findItems(text);
-
-		
-		if (exitRois.size() < 1)
+		qDebug() << Roi2DHash.keys() << "cur Slice is " << m_SourceImageCurrentSlice;
+		if (Roi2DHash.contains(m_SourceImageCurrentSlice))
 		{
-			roimode = 0; //new roi
+			qDebug() << text << " is in" << Roi2DHash[m_SourceImageCurrentSlice].keys() << "? " << Roi2DHash[m_SourceImageCurrentSlice].contains(text);
+			roimode = Roi2DHash[m_SourceImageCurrentSlice].contains(text)?-1:0;
+			if (roimode == 0)
+			{
+				QHashIterator<int, QHash<QString, vtkContourRepresentation*> > wdwIter(Roi2DHash);
+				while (wdwIter.hasNext())
+				{
+					wdwIter.next();
+					QHash<QString, vtkContourRepresentation*> roiHash = wdwIter.value();
+					qDebug() << text << " is in" << roiHash.keys() << "? " << roiHash.contains(text);
+					if (roiHash.contains(text))
+					{
+						roimode = 1;
+					}
+				}
+			}
 		}
 		else{
-			if (Roi2DHash.contains(m_SourceImageCurrentSlice))
+			roimode = 0;
+
+			QHashIterator<int, QHash<QString, vtkContourRepresentation*> > wdwIter(Roi2DHash);
+			while (wdwIter.hasNext())
 			{
-				roimode = -1;
-			}
-			else{
-				roimode = 1;
-			}
+				wdwIter.next();
+				QHash<QString, vtkContourRepresentation*> roiHash = wdwIter.value();
+				qDebug() << text << " is in" << roiHash.keys() << "? " << roiHash.contains(text);
+				if (roiHash.contains(text))
+				{
+					roimode = 1;
+				}
+			}			
 		}
-		
-
-		//if (Roi2DHash.contains(text)){
-		//	if (Roi2DHash[text].contains(m_SourceImageCurrentSlice)){
-		//		roimode = -1; // return.
-		//	}
-		//	else{
-		//		roimode = 1; //append roi
-		//	}
-		//}else{
-		//	roimode = 0; //new roi
-		//}
-
 	}
 
-	if (roimode >= 0)
+	if (roimode < 0)
 	{
+		info = new QMessageBox(this);
+		info->setWindowTitle(tr("Error"));
+		info->setText(tr("This ROI already exists in current slice, please init ROI with a different name"));
+		info->setStandardButtons(QMessageBox::Ok);
+		int ret = info->exec();
+		return;
+	}
+	else{
 		QStandardItem * hookItem;
 
 		qDebug() << "ROI Mode = " <<roimode;
@@ -1079,18 +1084,7 @@ void MainWindow::addROI() //bool _istoggled
 				ui->ViewFrame->onLabelWdw(wdwIter.key());
 				
 			}
-		}		
-				
-		//if (roimode > 0) //apend: 
-		//{
-		//	//retrieving root of existing ROI tree;
-		//	for (int i = 0; i < root->rowCount(); i++)
-		//	{
-		//		if (text == root->child(i)->text())
-		//		{
-		//			hookItem = root->child(i);
-		//		}
-		//	}
+		}						
 
 		ui->statisBrowser->resizeColumnToContents(0);
 		
@@ -1099,17 +1093,17 @@ void MainWindow::addROI() //bool _istoggled
 			QStandardItem *imgRoot = roiInfoModel->findItems(wdwName)[0];			
 			if (roimode > 0) //apend: 
 			{
-				//retrieving root of existing ROI tree;				
+				//retrieving root of existing ROI tree;
 				for (int i = 0; i < imgRoot->rowCount(); i++)
 				{
 					if (text == imgRoot->child(i)->text()) //check ROI level
 					{
-						qDebug() << "handling "<<text<<" at "<<i<<"of ROW " << imgRoot->index().row();
-						hookItem = imgRoot->child(i);
+						qDebug() << "handling " << text << " at " << i << "of ROW " << imgRoot->index().row();
+						hookItem = imgRoot->child(i);												
 					}
-
 				}
-			}else //new: 
+			}
+			else //new: 			
 			{
 				//creating ROI tree,return its root;
 				QList<QStandardItem *> newROIRow;
@@ -1137,7 +1131,7 @@ void MainWindow::removeROI()
 	//1. loopOver all int QHash<int, vtkCollection*> RoiCollection; remove rep from vtkcollection;
 	//2. remove row in model 
 	//3. remove actors in current windows.	
-	if (!curRoiDataindex.isValid())
+	if (!curRoiDataindex.isValid() || !curRoiDataindex.parent().parent().isValid())
 	{
 		info = new QMessageBox(this);
 		info->setWindowTitle(tr("Warning"));

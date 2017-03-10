@@ -611,7 +611,7 @@ void vtkRoiInteractor::initialize(vtkSmartPointer<vtkRenderWindowInteractor> iIn
 	//default value---none scaling
 	imageName = parentItem->parent()->text();
 
-	qDebug() << "Initializing new vtk ROI at " << imageName << endl;;
+	qDebug() << "Initializing new vtk ROI " << parentItem->text() << " at " << imageName << endl;;
 
 	vtkSmartPointer< vtkTracerCallback> traceCallback = vtkTracerCallback::New();
 	traceCallback->initialize(scalingPara[0], scalingPara[1], parentItem, RoiHash, RoiMode, sliceNum);
@@ -625,12 +625,29 @@ void vtkRoiInteractor::initialize(vtkSmartPointer<vtkRenderWindowInteractor> iIn
 	newContourWidget->FollowCursorOn();
 
 	vtkOrientedGlyphContourRepresentation* rep = vtkOrientedGlyphContourRepresentation::New();
-	rep->GetLinesProperty()->SetColor(1, 1, 0);
 	rep->GetLinesProperty()->SetLineWidth(1.5);
+
+	if (parentItem->text() == QString("ROI1"))
+	{
+		qDebug() << "set color of ROI1";
+		rep->GetLinesProperty()->SetColor(0, 1, 0);
+	}
+	else if (parentItem->text() == QString("ROI2")){
+		rep->GetLinesProperty()->SetColor(1, 1, 0);
+	}
+	else if (parentItem->text() == QString("ROI3")){
+		rep->GetLinesProperty()->SetColor(1, 0, 0);
+	}
 
 	std::cout << "There are " << rep->GetNumberOfNodes() << " nodes and " << rep->GetNumberOfPaths() << " path" << std::endl;
 
 	vtkImageActor* imageActor = static_cast<myVtkInteractorStyleImage*>(iInt->GetInteractorStyle())->GetImageActor();
+
+	if (!imageActor)
+	{ 
+		qDebug() << "Image Actor cannot be retreived";
+		return; 
+	}
 
 	vtkImageActorPointPlacer* placer = vtkImageActorPointPlacer::New();
 	placer->SetImageActor(imageActor);
@@ -687,7 +704,19 @@ void vtkRoiInteractor::useContourRep(vtkSmartPointer<vtkRenderWindowInteractor> 
 	newContourWidget->FollowCursorOn();
 
 	vtkOrientedGlyphContourRepresentation* rep = vtkOrientedGlyphContourRepresentation::New();
-	rep->GetLinesProperty()->SetColor(1, 1, 0);
+
+	if (parentItem->text() == QString("ROI1"))
+	{
+		qDebug() << "set color of ROI1";
+		rep->GetLinesProperty()->SetColor(0, 1, 0);
+	}
+	else if (parentItem->text() == QString("ROI2")){
+		rep->GetLinesProperty()->SetColor(1, 1, 0);
+	}
+	else if (parentItem->text() == QString("ROI3")){
+		rep->GetLinesProperty()->SetColor(1, 0, 0);
+	}
+
 	rep->GetLinesProperty()->SetLineWidth(1.5);
 	std::cout << "There are " << rep->GetNumberOfNodes() << " nodes and " << rep->GetNumberOfPaths() << " path" << std::endl;
 	vtkImageActor* imageActor = static_cast<myVtkInteractorStyleImage*>(iInt->GetInteractorStyle())->GetImageActor();

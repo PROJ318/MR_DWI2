@@ -594,10 +594,17 @@ void DiffusionCore::EAdcCalculator(vtkSmartPointer <vtkImageData> imageData, flo
 	}
 	vectorImageToImageFilter->Update();
 
+	//Data Clipping
+	typedef itk::DisplayOptimizer < DiffusionCalculatorImageType, DiffusionCalculatorImageType> DisplayOptimizerType;
+	DisplayOptimizerType::Pointer displayOptimizer = DisplayOptimizerType::New();
+	displayOptimizer->SetInput(vectorImageToImageFilter->GetOutput());
+	displayOptimizer->SetCoveragePercent(0.98);//Default is 0.99
+	displayOptimizer->Update();
+
 	//Rescale signal intensity to display
-	typedef itk::RescaleIntensityImageFilter < DiffusionCalculatorImageType, DiffusionCalculatorImageType> RescaleIntensityImageType;
+	typedef itk::RescaleIntensityImageFilter < DiffusionCalculatorImageType, SourceImageType> RescaleIntensityImageType;
 	RescaleIntensityImageType::Pointer rescaleFilter = RescaleIntensityImageType::New();
-	rescaleFilter->SetInput(vectorImageToImageFilter->GetOutput());
+	rescaleFilter->SetInput(displayOptimizer->GetOutput());
 	rescaleFilter->SetOutputMaximum(4095.0);
 	rescaleFilter->SetOutputMinimum(0.0);
 	rescaleFilter->Update();
@@ -605,12 +612,7 @@ void DiffusionCore::EAdcCalculator(vtkSmartPointer <vtkImageData> imageData, flo
 	//std::cout << "rescaleFilter: inputMinimum = " << rescaleFilter->GetInputMinimum() << std::endl;
 	scale = 1 / rescaleFilter->GetScale();
 	slope = -1 * rescaleFilter->GetShift() / rescaleFilter->GetScale();
-	//Data Clipping
-	typedef itk::DisplayOptimizer < DiffusionCalculatorImageType, SourceImageType> DisplayOptimizerType;
-	DisplayOptimizerType::Pointer displayOptimizer = DisplayOptimizerType::New();
-	displayOptimizer->SetInput(rescaleFilter->GetOutput());
-	displayOptimizer->SetCoveragePercent(0.98);//Default is 0.99
-	displayOptimizer->Update();
+
 
 	//std::cout << "rescaleFilter: inputMaximum = " << rescaleFilter->GetInputMaximum() << std::endl;
 	//std::cout << "rescaleFilter: inputMinimum = " << rescaleFilter->GetInputMinimum() << std::endl;
@@ -619,7 +621,7 @@ void DiffusionCore::EAdcCalculator(vtkSmartPointer <vtkImageData> imageData, flo
 	//ITK to VTK
 	typedef itk::ImageToVTKImageFilter <SourceImageType> itkToVtkConverter;
 	itkToVtkConverter::Pointer convItkToVtk = itkToVtkConverter::New();
-	convItkToVtk->SetInput(displayOptimizer->GetOutput());
+	convItkToVtk->SetInput(rescaleFilter->GetOutput());
 	convItkToVtk->Update();
 
 	imageData->DeepCopy(convItkToVtk->GetOutput());
@@ -682,10 +684,18 @@ void DiffusionCore::CDWICalculator(vtkSmartPointer <vtkImageData> imageData, flo
 	vectorImageToImageFilter->SetInput(computedDwi->GetOutput());
 	vectorImageToImageFilter->Update();
 
+
+	//Data Clipping
+	typedef itk::DisplayOptimizer < DiffusionCalculatorImageType, DiffusionCalculatorImageType> DisplayOptimizerType;
+	DisplayOptimizerType::Pointer displayOptimizer = DisplayOptimizerType::New();
+	displayOptimizer->SetInput(vectorImageToImageFilter->GetOutput());
+	displayOptimizer->SetCoveragePercent(0.98);//Default is 0.99
+	displayOptimizer->Update();
+
 	//Rescale signal intensity to display
-	typedef itk::RescaleIntensityImageFilter < DiffusionCalculatorImageType, DiffusionCalculatorImageType> RescaleIntensityImageType;
+	typedef itk::RescaleIntensityImageFilter < DiffusionCalculatorImageType, SourceImageType> RescaleIntensityImageType;
 	RescaleIntensityImageType::Pointer rescaleFilter = RescaleIntensityImageType::New();
-	rescaleFilter->SetInput(vectorImageToImageFilter->GetOutput());
+	rescaleFilter->SetInput(displayOptimizer->GetOutput());
 	rescaleFilter->SetOutputMaximum(4095.0);
 	rescaleFilter->SetOutputMinimum(0.0);
 	rescaleFilter->Update();
@@ -693,19 +703,12 @@ void DiffusionCore::CDWICalculator(vtkSmartPointer <vtkImageData> imageData, flo
 	//std::cout << "rescaleFilter: inputMinimum = " << rescaleFilter->GetInputMinimum() << std::endl;
 	scale = 1 / rescaleFilter->GetScale();
 	slope = -1 * rescaleFilter->GetShift() / rescaleFilter->GetScale();
-
-	//Data Clipping
-	typedef itk::DisplayOptimizer < DiffusionCalculatorImageType, SourceImageType> DisplayOptimizerType;
-	DisplayOptimizerType::Pointer displayOptimizer = DisplayOptimizerType::New();
-	displayOptimizer->SetInput(rescaleFilter->GetOutput());
-	displayOptimizer->SetCoveragePercent(0.98);//Default is 0.99
-	displayOptimizer->Update();
-
+	
 	///////////////////////////////////////////
 	//ITK to VTK for visualization
 	typedef itk::ImageToVTKImageFilter < SourceImageType > itkToVtkConverter;
 	itkToVtkConverter::Pointer convItkToVtk = itkToVtkConverter::New();
-	convItkToVtk->SetInput(displayOptimizer->GetOutput());
+	convItkToVtk->SetInput(rescaleFilter->GetOutput());
 	convItkToVtk->Update();
 
 	imageData->DeepCopy(convItkToVtk->GetOutput());
@@ -776,10 +779,17 @@ void DiffusionCore::FaCalculator(vtkSmartPointer <vtkImageData> imageData, float
 	vectorImageToImageFilter->SetInput(GetDiffusionImages->GetOutput1());
 	vectorImageToImageFilter->Update();
 
+	//Data Clipping
+	typedef itk::DisplayOptimizer < DiffusionCalculatorImageType, DiffusionCalculatorImageType> DisplayOptimizerType;
+	DisplayOptimizerType::Pointer displayOptimizer = DisplayOptimizerType::New();
+	displayOptimizer->SetInput(vectorImageToImageFilter->GetOutput());
+	displayOptimizer->SetCoveragePercent(0.9);//Default is 0.99
+	displayOptimizer->Update();
+
 	//Rescale signal intensity to display
-	typedef itk::RescaleIntensityImageFilter < DiffusionCalculatorImageType, DiffusionCalculatorImageType> RescaleIntensityImageType;
+	typedef itk::RescaleIntensityImageFilter < DiffusionCalculatorImageType, SourceImageType> RescaleIntensityImageType;
 	RescaleIntensityImageType::Pointer rescaleFilter = RescaleIntensityImageType::New();
-	rescaleFilter->SetInput(vectorImageToImageFilter->GetOutput());
+	rescaleFilter->SetInput(displayOptimizer->GetOutput());
 	rescaleFilter->SetOutputMaximum(4095.0);
 	rescaleFilter->SetOutputMinimum(0.0);
 	rescaleFilter->Update();
@@ -789,18 +799,11 @@ void DiffusionCore::FaCalculator(vtkSmartPointer <vtkImageData> imageData, float
 	//std::cout << "rescaleFilter: inputMaximum = " << rescaleFilter->GetInputMaximum() << std::endl;
 	//std::cout << "rescaleFilter: inputMinimum = " << rescaleFilter->GetInputMinimum() << std::endl;
 
-	//Data Clipping
-	typedef itk::DisplayOptimizer < DiffusionCalculatorImageType, SourceImageType> DisplayOptimizerType;
-	DisplayOptimizerType::Pointer displayOptimizer = DisplayOptimizerType::New();
-	displayOptimizer->SetInput(rescaleFilter->GetOutput());
-	displayOptimizer->SetCoveragePercent(0.9);//Default is 0.99
-	displayOptimizer->Update();
-
 	///////////////////////////////////////////
 	//ITK to VTK
 	typedef itk::ImageToVTKImageFilter <SourceImageType> itkToVtkConverter;
 	itkToVtkConverter::Pointer convItkToVtk = itkToVtkConverter::New();
-	convItkToVtk->SetInput(displayOptimizer->GetOutput());
+	convItkToVtk->SetInput(rescaleFilter->GetOutput());
 	convItkToVtk->Update();
 
 	imageData->DeepCopy(convItkToVtk->GetOutput());
