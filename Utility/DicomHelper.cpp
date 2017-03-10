@@ -233,12 +233,19 @@ void DicomHelper::DiffusionInfo(vtkDICOMMetaData* metaData,
 	this->SortingSourceImage(imageData, &BvalueList, numOfGradDir);
 
 	//Add component Info for status bar
+	std::stringstream b0MSG;
+	b0MSG << "b Value: " << BvalueList.at(0) << "s/mm2";
+	componentTextInfoList.push_back(b0MSG.str());
 	for (int i = 0; i < BvalueList.size(); i++)
 	{
-		std::stringstream tmpMSG;
-		tmpMSG << "b Value: " << BvalueList.at(i) << "s/mm2";
-		componentTextInfoList.push_back(tmpMSG.str());
+		for (int direction = 0; direction < numberOfGradDirection; direction++)
+		{
+			std::stringstream tmpMSG;
+			tmpMSG << "b Value: " << BvalueList.at(i) << "s/mm2";
+			componentTextInfoList.push_back(tmpMSG.str());
+		}
 	}
+	std::cout << "components = " << numberOfComponents << componentTextInfoList.size() << std::endl;
 
 };
 

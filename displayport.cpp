@@ -204,7 +204,7 @@ QHash <const QString, QWidget * >  DisplayPort::getAllWindow()
 		QLayoutItem *Item = this->gridlayout->itemAtPosition(row, col);
 		QFrame * frameWidget = static_cast<QFrame* >(Item->widget());
 		QWidget * Widget = frameWidget->childAt(10, 10);
-		if (Widget != NULL) {
+		if (Widget != NULL && it->right(5)!=QString("Chart") ) {
 			curWidgets.insert(*it, Widget);
 		}
 		else{

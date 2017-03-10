@@ -191,6 +191,7 @@ void DiffusionCore::onSetSourceImage(DicomHelper* dicomData, int inputSlice)
 	{
 		std::cout << "[SetSourceImage] DTI OK ";
 		this->m_Controls->DTITool->setEnabled(true);
+		this->m_Controls->ADCTool->setEnabled(true);
 
 		if (m_DicomHelper->numberOfBValue >= 4)
 		{
@@ -909,16 +910,16 @@ void DiffusionCore::onCalcIVIM(bool _istoggled)
 			return;
 		}
 
-		//PR: do not disable IVIM button (307).
-		//PR: disable other buttons right from dicom loading, rather than here.
-		for (int i = 301; i < 306; i++)
-		{
-			ButtonTable->button(i)->blockSignals(true);
-			ButtonTable->button(i)->setChecked(false);
-			ButtonTable->button(i)->blockSignals(false);
-			ButtonTable->button(i)->setEnabled(false);
-		}
-			
+		////PR: do not disable IVIM button (307).
+		////PR: disable other buttons right from dicom loading, rather than here.
+		//for (int i = 301; i < 306; i++)
+		//{
+		//	ButtonTable->button(i)->blockSignals(true);
+		//	ButtonTable->button(i)->setChecked(false);
+		//	ButtonTable->button(i)->blockSignals(false);
+		//	ButtonTable->button(i)->setEnabled(false);
+		//}
+		this->m_Controls->Thresh->setVisible(_istoggled);
 		computedIVIM_F = vtkSmartPointer <vtkImageData>::New();
 		computedIVIM_DStar = vtkSmartPointer <vtkImageData>::New();
 		computedIVIM_D = vtkSmartPointer <vtkImageData>::New();
